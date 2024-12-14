@@ -20,14 +20,12 @@ pragma solidity >=0.6.11;
 // Jason Huan: https://github.com/jasonhuan
 // Sam Kazemian: https://github.com/samkazemian
 
-import "../Math/SafeMath.sol";
 import "./FXB.sol";
 import "../Frax/Frax.sol";
 import "../ERC20/ERC20.sol";
 import "../Governance/AccessControl.sol";
 
 contract FraxBondIssuerWithDeposits is AccessControl {
-    // using SafeMath for uint256;
 
     // /* ========== STATE VARIABLES ========== */
     // enum DirectionChoice { BUY_FROM_AMM, SELL_INTO_AMM }
@@ -137,8 +135,8 @@ contract FraxBondIssuerWithDeposits is AccessControl {
     //     timelock_address = _timelock_address;
 
     //     // Needed for initialization
-    //     epoch_start = (block.timestamp).sub(cooldown_period).sub(epoch_length);
-    //     epoch_end = (block.timestamp).sub(cooldown_period);
+    //     epoch_start = (block.timestamp) - cooldown_period - epoch_length;
+    //     epoch_end = (block.timestamp) - cooldown_period;
         
     //     _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
     //     DEFAULT_ADMIN_ADDRESS = _msgSender();
@@ -171,7 +169,7 @@ contract FraxBondIssuerWithDeposits is AccessControl {
 
     // // Checks if the bond is in the cooldown period
     // function isInCooldown() public view returns (bool in_cooldown) {
-    //     in_cooldown = ((block.timestamp >= epoch_end) && (block.timestamp < epoch_end.add(cooldown_period)));
+    //     in_cooldown = ((block.timestamp >= epoch_end) && (block.timestamp < epoch_end + cooldown_period));
     // }
 
     // // Checks if the bond is in a maturity epoch
@@ -181,7 +179,7 @@ contract FraxBondIssuerWithDeposits is AccessControl {
 
     // // Calculates FXB outside the contract
     // function FXB_Outside_Contract() public view returns (uint256 fxb_outside_contract) {
-    //     fxb_outside_contract = (FXB.totalSupply()).sub(FXB.balanceOf(address(this)));
+    //     fxb_outside_contract = (FXB.totalSupply()) - FXB.balanceOf(address(this));
     // }
 
     // // Algorithmically calculated optimal initial discount rate
@@ -200,13 +198,13 @@ contract FraxBondIssuerWithDeposits is AccessControl {
     // // Will be used to help prevent someone from doing a huge arb with cheap bonds right before they mature
     // // Also prevents dumping FXB into the AMM and depressing the price too much
     // function floor_price() public view returns (uint256 floor_price) {
-    //     uint256 time_into_epoch = (block.timestamp).sub(epoch_start);
+    //     uint256 time_into_epoch = (block.timestamp) - epoch_start;
     //     uint256 initial_discount = getInitialDiscount();
-    //     floor_price = (PRICE_PRECISION.sub(initial_discount)).add(initial_discount.mul(time_into_epoch).div(epoch_length));
+    //     floor_price = (PRICE_PRECISION - initial_discount) + initial_discount * time_into_epoch / epoch_length;
     // }
 
     // function initial_price() public view returns (uint256 initial_price) {
-    //     initial_price = (PRICE_PRECISION.sub(getInitialDiscount()));
+    //     initial_price = (PRICE_PRECISION - getInitialDiscount());
     // }
 
     // function getInitialDiscount() public view returns (uint256 initial_discount) {
@@ -226,11 +224,11 @@ contract FraxBondIssuerWithDeposits is AccessControl {
 
     //     if (amm_spot_price() < the_floor_price){
     //         minimum_frax_for_buy = getBoundedIn(DirectionChoice.BUY_FROM_AMM, the_floor_price);
-    //         uint256 fee = minimum_frax_for_buy.mul(buying_fee).div(PRICE_PRECISION);
+    //         uint256 fee = minimum_frax_for_buy * buying_fee / PRICE_PRECISION;
 
     //         // Add the fee here instead of subtracting so a tiny bit more FRAX is taken and the price lands
     //         // just above the floor price
-    //         minimum_frax_for_buy = minimum_frax_for_buy.add(fee);
+    //         minimum_frax_for_buy = minimum_frax_for_buy + fee;
     //     }
     //     else {
     //         minimum_frax_for_buy = 0;
@@ -247,8 +245,8 @@ contract FraxBondIssuerWithDeposits is AccessControl {
 
     //     if (amm_spot_price() > the_floor_price){
     //         maximum_fxb_for_sell = getBoundedIn(DirectionChoice.SELL_INTO_AMM, the_floor_price);
-    //         uint256 fee = maximum_fxb_for_sell.mul(selling_fee).div(PRICE_PRECISION);
-    //         maximum_fxb_for_sell = maximum_fxb_for_sell.sub(fee);
+    //         uint256 fee = maximum_fxb_for_sell * selling_fee / PRICE_PRECISION;
+    //         maximum_fxb_for_sell = maximum_fxb_for_sell - fee;
     //     }
     //     else {
     //         maximum_fxb_for_sell = 0;
@@ -262,9 +260,9 @@ contract FraxBondIssuerWithDeposits is AccessControl {
     // function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut, uint the_fee) public view returns (uint amountOut) {
     //     require(amountIn > 0, 'FraxBondIssuer: INSUFFICIENT_INPUT_AMOUNT');
     //     require(reserveIn > 0 && reserveOut > 0, 'FraxBondIssuer: INSUFFICIENT_LIQUIDITY');
-    //     uint amountInWithFee = amountIn.mul(uint(1e6).sub(the_fee));
-    //     uint numerator = amountInWithFee.mul(reserveOut);
-    //     uint denominator = (reserveIn.mul(1e6)).add(amountInWithFee);
+    //     uint amountInWithFee = amountIn * uint(1e6 - the_fee);
+    //     uint numerator = amountInWithFee * reserveOut;
+    //     uint denominator = (reserveIn * 1e6) + amountInWithFee;
     //     amountOut = numerator / denominator;
     // }
 
@@ -282,7 +280,7 @@ contract FraxBondIssuerWithDeposits is AccessControl {
     //     FXB.burn(fxb_amount);
 
     //     // Mark the deposit
-    //     deposited_fxb = deposited_fxb.add(fxb_amount);
+    //     deposited_fxb = deposited_fxb + fxb_amount;
     //     kek_id = keccak256(abi.encodePacked(msg.sender, block.timestamp, fxb_amount));
     //     bondDeposits[msg.sender].push(BondDeposit(
     //         kek_id,
@@ -302,10 +300,10 @@ contract FraxBondIssuerWithDeposits is AccessControl {
     //     uint256 fxb_out = getAmountOutNoFee(frax_amount, FRAX.balanceOf(address(this)), FXB.balanceOf(address(this)));
 
     //     // Calculate and apply the normal buying fee
-    //     fxb_fee_amt = fxb_out.mul(buying_fee).div(PRICE_PRECISION);
+    //     fxb_fee_amt = fxb_out * buying_fee / PRICE_PRECISION;
 
     //     // Apply the fee
-    //     fxb_out = fxb_out.sub(fxb_fee_amt);
+    //     fxb_out = fxb_out - fxb_fee_amt;
 
     //     // Check fxb_out_min
     //     require(fxb_out >= fxb_out_min, "[buyFXBfromAMM fxb_out_min]: Slippage limit reached");
@@ -327,7 +325,7 @@ contract FraxBondIssuerWithDeposits is AccessControl {
     //         FXB.burn(fxb_out);
 
     //         // Mark the deposit
-    //         deposited_fxb = deposited_fxb.add(fxb_out);
+    //         deposited_fxb = deposited_fxb + fxb_out;
     //         kek_id = keccak256(abi.encodePacked(msg.sender, block.timestamp, fxb_out));
     //         bondDeposits[msg.sender].push(BondDeposit(
     //             kek_id,
@@ -366,8 +364,8 @@ contract FraxBondIssuerWithDeposits is AccessControl {
     //                 revert("Sale would push FXB below the floor price");
     //             }
     //             else {
-    //                 fxb_at_market_price = fxb_amount.sub(max_above_floor_sellable_fxb);
-    //                 fxb_at_floor_price = fxb_amount.sub(fxb_at_market_price);
+    //                 fxb_at_market_price = fxb_amount - max_above_floor_sellable_fxb;
+    //                 fxb_at_floor_price = fxb_amount - fxb_at_market_price;
     //             }
     //         }
     //         else {
@@ -380,11 +378,11 @@ contract FraxBondIssuerWithDeposits is AccessControl {
 
     //     // Add in the FRAX from the floor-priced portion
     //     uint256 the_floor_price = floor_price();
-    //     frax_out = frax_out.add(fxb_at_floor_price.mul(the_floor_price).div(PRICE_PRECISION));
+    //     frax_out = frax_out + fxb_at_floor_price * the_floor_price / PRICE_PRECISION;
 
     //     // Apply the normal selling fee
-    //     frax_fee_amt = frax_out.mul(selling_fee).div(PRICE_PRECISION);
-    //     frax_out = frax_out.sub(frax_fee_amt);
+    //     frax_fee_amt = frax_out * selling_fee / PRICE_PRECISION;
+    //     frax_out = frax_out - frax_fee_amt;
 
     //     // Check frax_out_min
     //     require(frax_out >= frax_out_min, "[sellFXBintoAMM frax_out_min]: Slippage limit reached");
@@ -415,8 +413,8 @@ contract FraxBondIssuerWithDeposits is AccessControl {
     //     FXB.transferFrom(msg.sender, address(this), fxb_amount);
 
     //     // Give 1 FRAX per 1 FXB, minus the redemption fee
-    //     frax_fee = fxb_amount.mul(redemption_fee).div(PRICE_PRECISION);
-    //     frax_out = fxb_amount.sub(frax_fee);
+    //     frax_fee = fxb_amount * redemption_fee / PRICE_PRECISION;
+    //     frax_out = fxb_amount - frax_fee;
 
     //     FRAX.pool_mint(msg.sender, frax_out);
 
@@ -442,11 +440,11 @@ contract FraxBondIssuerWithDeposits is AccessControl {
     //     delete bondDeposits[msg.sender][theIndex];
 
     //     // Decrease the deposited bonds tracker
-    //     deposited_fxb = deposited_fxb.sub(fxb_amount);
+    //     deposited_fxb = deposited_fxb - fxb_amount;
         
     //     // Give 1 FRAX per 1 FXB, minus the redemption fee
-    //     frax_fee = fxb_amount.mul(redemption_fee).div(PRICE_PRECISION);
-    //     uint256 frax_out = fxb_amount.sub(frax_fee);
+    //     frax_fee = fxb_amount * redemption_fee / PRICE_PRECISION;
+    //     uint256 frax_out = fxb_amount - frax_fee;
 
     //     FRAX.pool_mint(msg.sender, frax_out);
 
@@ -460,13 +458,13 @@ contract FraxBondIssuerWithDeposits is AccessControl {
     // function _burnExcessFXB() internal returns (uint256 fxb_total_supply, uint256 fxb_adjusted_total_supply, uint256 fxb_inside_contract, uint256 fxb_outside_contract, uint256 burn_amount) {
     //     // Get the balances
     //     fxb_total_supply = FXB.totalSupply();
-    //     fxb_adjusted_total_supply = fxb_total_supply.add(deposited_fxb); // Don't forget to account for deposited FXB
+    //     fxb_adjusted_total_supply = fxb_total_supply + deposited_fxb; // Don't forget to account for deposited FXB
     //     fxb_inside_contract = FXB.balanceOf(address(this));
-    //     fxb_outside_contract = fxb_total_supply.sub(fxb_inside_contract);
+    //     fxb_outside_contract = fxb_total_supply - fxb_inside_contract;
 
     //     // Only need to burn if there is an excess
     //     if (fxb_adjusted_total_supply > max_fxb_outstanding){
-    //         uint256 total_excess_fxb = fxb_adjusted_total_supply.sub(max_fxb_outstanding);
+    //         uint256 total_excess_fxb = fxb_adjusted_total_supply - max_fxb_outstanding;
             
     //         // If the contract has some excess FXB, try to burn it
     //         if(fxb_inside_contract >= total_excess_fxb){
@@ -483,9 +481,9 @@ contract FraxBondIssuerWithDeposits is AccessControl {
 
     //         // Fetch the new balances
     //         fxb_total_supply = FXB.totalSupply();
-    //         fxb_adjusted_total_supply = fxb_total_supply.add(deposited_fxb);
+    //         fxb_adjusted_total_supply = fxb_total_supply + deposited_fxb;
     //         fxb_inside_contract = FXB.balanceOf(address(this));
-    //         fxb_outside_contract = fxb_total_supply.sub(fxb_inside_contract);
+    //         fxb_outside_contract = fxb_total_supply - fxb_inside_contract;
     //     }
 
     // }
@@ -501,10 +499,10 @@ contract FraxBondIssuerWithDeposits is AccessControl {
     //     uint256 fxb_spot_price = amm_spot_price();
         
     //     // Update max_fxb_outstanding
-    //     max_fxb_outstanding = max_fxb_outstanding.sub(fxb_contraction_amount);
+    //     max_fxb_outstanding = max_fxb_outstanding - fxb_contraction_amount;
 
     //     // Burn the required FRAX
-    //     FRAX.burn(fxb_contraction_amount.mul(fxb_spot_price).div(PRICE_PRECISION));
+    //     FRAX.burn(fxb_contraction_amount * fxb_spot_price / PRICE_PRECISION);
 
     //     // Burn the required FXB
     //     FXB.burn(fxb_contraction_amount);
@@ -519,10 +517,10 @@ contract FraxBondIssuerWithDeposits is AccessControl {
     //     uint256 fxb_spot_price = amm_spot_price();
 
     //     // Update max_fxb_outstanding
-    //     max_fxb_outstanding = max_fxb_outstanding.add(fxb_expansion_amount);
+    //     max_fxb_outstanding = max_fxb_outstanding + fxb_expansion_amount;
 
     //     // Mint the required FRAX
-    //     FRAX.pool_mint(address(this), fxb_expansion_amount.mul(fxb_spot_price).div(PRICE_PRECISION));
+    //     FRAX.pool_mint(address(this), fxb_expansion_amount * fxb_spot_price / PRICE_PRECISION);
 
     //     // Mint the required FXB
     //     FXB.issuer_mint(address(this), fxb_expansion_amount);
@@ -548,29 +546,29 @@ contract FraxBondIssuerWithDeposits is AccessControl {
     //         require(fxb_adjusted_total_supply <= max_fxb_outstanding, "Still too much FXB outstanding" ); 
 
     //         // Mint FXB up to max_fxb_outstanding
-    //         uint256 fxb_needed = max_fxb_outstanding.sub(fxb_outside_contract).sub(fxb_inside_contract).sub(deposited_fxb);
+    //         uint256 fxb_needed = max_fxb_outstanding - fxb_outside_contract - fxb_inside_contract - deposited_fxb;
     //         FXB.issuer_mint(address(this), fxb_needed);
     //     }
 
 
     //     // Mint or burn FRAX to get to the initial_discount
     //     {
-    //         uint256 desired_frax_amount = max_fxb_outstanding.mul(PRICE_PRECISION.sub(initial_discount)).div(PRICE_PRECISION);
+    //         uint256 desired_frax_amount = max_fxb_outstanding * PRICE_PRECISION - initial_discount / PRICE_PRECISION;
     //         uint256 frax_inside_contract = FRAX.balanceOf(address(this));
     //         if (desired_frax_amount > frax_inside_contract){
     //             // Mint the deficiency
-    //             FRAX.pool_mint(address(this), desired_frax_amount.sub(frax_inside_contract));
+    //             FRAX.pool_mint(address(this), desired_frax_amount - frax_inside_contract);
     //         }
     //         else if (desired_frax_amount < frax_inside_contract){
     //             // Burn the excess
-    //             FRAX.burn(frax_inside_contract.sub(desired_frax_amount));
+    //             FRAX.burn(frax_inside_contract - desired_frax_amount);
     //         }
     //         else { /* Do nothing */ }
     //     }
 
     //     // Set state variables
     //     epoch_start = block.timestamp;
-    //     epoch_end = epoch_start.add(epoch_length);
+    //     epoch_end = epoch_start + epoch_length;
 
 
     //     emit FXB_EpochStarted(msg.sender, epoch_start, epoch_end, epoch_length, initial_discount, max_fxb_outstanding);
@@ -582,15 +580,15 @@ contract FraxBondIssuerWithDeposits is AccessControl {
     //     uint256 fxb_contract_balance = FXB.balanceOf(address(this));
         
     //     if (choice == DirectionChoice.BUY_FROM_AMM) {
-    //         uint256 numerator = sqrt(frax_contract_balance).mul(sqrt(fxb_contract_balance)).mul(sqrt(PRICE_PRECISION));
+    //         uint256 numerator = sqrt(frax_contract_balance) * sqrt(fxb_contract_balance) * sqrt(PRICE_PRECISION);
     //         // The "price" here needs to be inverted 
-    //         uint256 denominator = sqrt(uint256(PRICE_PRECISION ** 2).div(the_floor_price));
-    //         bounded_amount = numerator.div(denominator).sub(frax_contract_balance);
+    //         uint256 denominator = sqrt(uint256(PRICE_PRECISION ** 2) / the_floor_price);
+    //         bounded_amount = numerator / denominator - frax_contract_balance;
     //     }
     //     else if (choice == DirectionChoice.SELL_INTO_AMM) {
-    //         uint256 numerator = sqrt(frax_contract_balance).mul(sqrt(fxb_contract_balance)).mul(sqrt(PRICE_PRECISION));
+    //         uint256 numerator = sqrt(frax_contract_balance) * sqrt(fxb_contract_balance) * sqrt(PRICE_PRECISION);
     //         uint256 denominator = sqrt(the_floor_price);
-    //         bounded_amount = numerator.div(denominator).sub(fxb_contract_balance);
+    //         bounded_amount = numerator / denominator - fxb_contract_balance;
     //     }
 
     // }
