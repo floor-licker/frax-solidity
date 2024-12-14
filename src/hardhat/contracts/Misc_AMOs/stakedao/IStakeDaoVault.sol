@@ -411,7 +411,6 @@ interface IStakeDaoVault {
 //  * allowances. See {IERC20-approve}.
 //  */
 // contract ERC20 is Context, IERC20 {
-//     using SafeMath for uint256;
 
 //     mapping (address => uint256) private _balances;
 
@@ -479,7 +478,7 @@ interface IStakeDaoVault {
 //      */
 //     function transferFrom(address sender, address recipient, uint256 amount) public returns (bool) {
 //         _transfer(sender, recipient, amount);
-//         _approve(sender, _msgSender(), _allowances[sender][_msgSender()].sub(amount, "ERC20: transfer amount exceeds allowance"));
+//         _approve(sender, _msgSender(), _allowances[sender][_msgSender()] - amount, "ERC20: transfer amount exceeds allowance");
 //         return true;
 //     }
 
@@ -496,7 +495,7 @@ interface IStakeDaoVault {
 //      * - `spender` cannot be the zero address.
 //      */
 //     function increaseAllowance(address spender, uint256 addedValue) public returns (bool) {
-//         _approve(_msgSender(), spender, _allowances[_msgSender()][spender].add(addedValue));
+//         _approve(_msgSender(), spender, _allowances[_msgSender()][spender] + addedValue);
 //         return true;
 //     }
 
@@ -515,7 +514,7 @@ interface IStakeDaoVault {
 //      * `subtractedValue`.
 //      */
 //     function decreaseAllowance(address spender, uint256 subtractedValue) public returns (bool) {
-//         _approve(_msgSender(), spender, _allowances[_msgSender()][spender].sub(subtractedValue, "ERC20: decreased allowance below zero"));
+//         _approve(_msgSender(), spender, _allowances[_msgSender()][spender] - subtractedValue, "ERC20: decreased allowance below zero");
 //         return true;
 //     }
 
@@ -537,8 +536,8 @@ interface IStakeDaoVault {
 //         require(sender != address(0), "ERC20: transfer from the zero address");
 //         require(recipient != address(0), "ERC20: transfer to the zero address");
 
-//         _balances[sender] = _balances[sender].sub(amount, "ERC20: transfer amount exceeds balance");
-//         _balances[recipient] = _balances[recipient].add(amount);
+//         _balances[sender] = _balances[sender] - amount, "ERC20: transfer amount exceeds balance";
+//         _balances[recipient] = _balances[recipient] + amount;
 //         emit Transfer(sender, recipient, amount);
 //     }
 
@@ -554,8 +553,8 @@ interface IStakeDaoVault {
 //     function _mint(address account, uint256 amount) internal {
 //         require(account != address(0), "ERC20: mint to the zero address");
 
-//         _totalSupply = _totalSupply.add(amount);
-//         _balances[account] = _balances[account].add(amount);
+//         _totalSupply = _totalSupply + amount;
+//         _balances[account] = _balances[account] + amount;
 //         emit Transfer(address(0), account, amount);
 //     }
 
@@ -573,8 +572,8 @@ interface IStakeDaoVault {
 //     function _burn(address account, uint256 amount) internal {
 //         require(account != address(0), "ERC20: burn from the zero address");
 
-//         _balances[account] = _balances[account].sub(amount, "ERC20: burn amount exceeds balance");
-//         _totalSupply = _totalSupply.sub(amount);
+//         _balances[account] = _balances[account] - amount, "ERC20: burn amount exceeds balance";
+//         _totalSupply = _totalSupply - amount;
 //         emit Transfer(account, address(0), amount);
 //     }
 
@@ -607,7 +606,7 @@ interface IStakeDaoVault {
 //      */
 //     function _burnFrom(address account, uint256 amount) internal {
 //         _burn(account, amount);
-//         _approve(account, _msgSender(), _allowances[account][_msgSender()].sub(amount, "ERC20: burn amount exceeds allowance"));
+//         _approve(account, _msgSender(), _allowances[account][_msgSender()] - amount, "ERC20: burn amount exceeds allowance");
 //     }
 // }
 
@@ -676,7 +675,6 @@ interface IStakeDaoVault {
 //  * which allows you to call the safe operations as `token.safeTransfer(...)`, etc.
 //  */
 // library SafeERC20 {
-//     using SafeMath for uint256;
 //     using Address for address;
 
 //     function safeTransfer(IERC20 token, address to, uint256 value) internal {
@@ -699,12 +697,12 @@ interface IStakeDaoVault {
 //     }
 
 //     function safeIncreaseAllowance(IERC20 token, address spender, uint256 value) internal {
-//         uint256 newAllowance = token.allowance(address(this), spender).add(value);
+//         uint256 newAllowance = token.allowance(address(this), spender) + value;
 //         callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, newAllowance));
 //     }
 
 //     function safeDecreaseAllowance(IERC20 token, address spender, uint256 value) internal {
-//         uint256 newAllowance = token.allowance(address(this), spender).sub(value, "SafeERC20: decreased allowance below zero");
+//         uint256 newAllowance = token.allowance(address(this), spender) - value, "SafeERC20: decreased allowance below zero";
 //         callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, newAllowance));
 //     }
 
@@ -741,7 +739,6 @@ interface IStakeDaoVault {
 // contract Vault is ERC20, ERC20Detailed {
 //     using SafeERC20 for IERC20;
 //     using Address for address;
-//     using SafeMath for uint256;
 
 //     IERC20 public token;
 
@@ -795,7 +792,7 @@ interface IStakeDaoVault {
 //     // Custom logic in here for how much the vault allows to be borrowed
 //     // Sets minimum required on-hand to keep small withdrawals cheap
 //     function available() public view returns (uint256) {
-//         return token.balanceOf(address(this)).mul(min).div(max);
+//         return token.balanceOf(address(this)) * min / max;
 //     }
 
 //     function earn() public {
@@ -813,12 +810,12 @@ interface IStakeDaoVault {
 //         uint256 _before = token.balanceOf(address(this));
 //         token.safeTransferFrom(msg.sender, address(this), _amount);
 //         uint256 _after = token.balanceOf(address(this));
-//         _amount = _after.sub(_before); // Additional check for deflationary tokens
+//         _amount = _after - _before; // Additional check for deflationary tokens
 //         uint256 shares = 0;
 //         if (totalSupply() == 0) {
 //             shares = _amount;
 //         } else {
-//             shares = (_amount.mul(totalSupply())).div(_pool);
+//             shares = (_amount * totalSupply()) / _pool;
 //         }
 //         _mint(msg.sender, shares);
 //     }
@@ -836,18 +833,18 @@ interface IStakeDaoVault {
 
 //     // No rebalance implementation for lower fees and faster swaps
 //     function withdraw(uint256 _shares) public {
-//         uint256 r = (balance().mul(_shares)).div(totalSupply());
+//         uint256 r = (balance() * _shares) / totalSupply();
 //         _burn(msg.sender, _shares);
 
 //         // Check balance
 //         uint256 b = token.balanceOf(address(this));
 //         if (b < r) {
-//             uint256 _withdraw = r.sub(b);
+//             uint256 _withdraw = r - b;
 //             IController(controller).withdraw(address(token), _withdraw);
 //             uint256 _after = token.balanceOf(address(this));
-//             uint256 _diff = _after.sub(b);
+//             uint256 _diff = _after - b;
 //             if (_diff < _withdraw) {
-//                 r = b.add(_diff);
+//                 r = b + _diff;
 //             }
 //         }
 
@@ -856,6 +853,6 @@ interface IStakeDaoVault {
 
 //     function getPricePerFullShare() public view returns (uint256) {
 //         return
-//             totalSupply() == 0 ? 1e18 : balance().mul(1e18).div(totalSupply());
+//             totalSupply() == 0 ? 1e18 : balance() * 1e18 / totalSupply();
 //     }
 // }
