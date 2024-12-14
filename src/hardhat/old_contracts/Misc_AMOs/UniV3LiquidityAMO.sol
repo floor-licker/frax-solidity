@@ -28,7 +28,6 @@ import "../Frax/Frax.sol";
 import "../FXS/FXS.sol";
 import "../Frax/Pools/FraxPool.sol";
 import "../Math/Math.sol";
-import "../Math/SafeMath.sol";
 import "../ERC20/ERC20.sol";
 import '../Uniswap/TransferHelper.sol';
 import "../Staking/Owned.sol";
@@ -41,7 +40,6 @@ import "../Uniswap_V3/IUniswapV3Pool.sol";
 import "../Uniswap_V3/ISwapRouter.sol";
 
 contract UniV3LiquidityAMO is Owned {
-    using SafeMath for uint256;
 
     /* ========== STATE VARIABLES ========== */
 
@@ -121,7 +119,7 @@ contract UniV3LiquidityAMO is Owned {
         pool = FraxPool(_pool_address);
         pool_collateral_address = _pool_collateral_address;
         pool_collateral_token = ERC20(_pool_collateral_address);
-        missing_decimals = uint256(18).sub(pool_collateral_token.decimals());
+        missing_decimals = uint256(18) - pool_collateral_token.decimals();
         timelock_address = _timelock_address;
         custodian_address = _custodian_address;
 
@@ -160,7 +158,7 @@ contract UniV3LiquidityAMO is Owned {
         allocations[2] = TotalLiquidityFrax(); 
 
         // Total Value
-        allocations[3] = allocations[0].add(allocations[1]).add(allocations[2]);
+        allocations[3] = allocations[0] + allocations[1] + allocations[2];
     }
 
     // E18 Collateral dollar value
@@ -168,9 +166,9 @@ contract UniV3LiquidityAMO is Owned {
         uint256 value_tally_e18 = 0;
         for (uint i = 0; i < collateral_addresses.length; i++){ 
             ERC20 thisCollateral = ERC20(collateral_addresses[i]);
-            uint256 missing_decs = uint256(18).sub(thisCollateral.decimals());
-            uint256 col_bal_e18 = thisCollateral.balanceOf(address(this)).mul(10 ** missing_decs);
-            value_tally_e18 = value_tally_e18.add(col_bal_e18);
+            uint256 missing_decs = uint256(18) - thisCollateral.decimals();
+            uint256 col_bal_e18 = thisCollateral.balanceOf(address(this)) * 10 ** missing_decs;
+            value_tally_e18 = value_tally_e18 + col_bal_e18;
         }
         return value_tally_e18;
     }
@@ -178,12 +176,12 @@ contract UniV3LiquidityAMO is Owned {
     // Needed for the Frax contract to function 
     function collatDollarBalance() external view returns (uint256) {
         uint256 collat_portion = showAllocations()[1];
-        uint256 frax_portion = (showAllocations()[0]).add(showAllocations()[2]);
+        uint256 frax_portion = (showAllocations()[0]) + showAllocations([2]);
 
         // Assumes worst case scenario if FRAX slips out of range. 
         // Otherwise, it would only be half that is multiplied by the CR
-        frax_portion = frax_portion.mul(FRAX.global_collateral_ratio()).div(PRICE_PRECISION);
-        return (collat_portion).add(frax_portion);
+        frax_portion = frax_portion * FRAX.global_collateral_ratio() / PRICE_PRECISION;
+        return (collat_portion) + frax_portion;
     }
 
     function allCollateralAddresses() external view returns (address[] memory) {
@@ -200,10 +198,10 @@ contract UniV3LiquidityAMO is Owned {
                 uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(thisPosition.tickLower);
                 uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(thisPosition.tickUpper);
                 if (thisPosition.collateral_address > 0x853d955aCEf822Db058eb8505911ED77F175b99e){ // if address(FRAX) < collateral_address, then FRAX is token0
-                    frax_tally = frax_tally.add(LiquidityAmounts.getAmount0ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, this_liq));
+                    frax_tally = frax_tally + LiquidityAmounts.getAmount0ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, this_liq);
                 }
                 else {
-                    frax_tally = frax_tally.add(LiquidityAmounts.getAmount1ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, this_liq));
+                    frax_tally = frax_tally + LiquidityAmounts.getAmount1ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, this_liq);
                 }
             }
         }
@@ -214,7 +212,7 @@ contract UniV3LiquidityAMO is Owned {
 
     // In collateral
     function collateralBalance() public view returns (uint256) {
-        if (borrowed_collat_historical >= returned_collat_historical) return borrowed_collat_historical.sub(returned_collat_historical);
+        if (borrowed_collat_historical >= returned_collat_historical) return borrowed_collat_historical - returned_collat_historical;
         else return 0;
     }
 
@@ -250,7 +248,7 @@ contract UniV3LiquidityAMO is Owned {
 
     // Give USDC profits back
     function giveCollatBack(uint256 amount) external onlyByOwnerOrGovernanceOrCustodian {
-        returned_collat_historical = returned_collat_historical.add(amount);
+        returned_collat_historical = returned_collat_historical + amount;
         TransferHelper.safeTransfer(address(pool_collateral_token), address(pool), amount);
     }
 
@@ -424,8 +422,8 @@ contract UniV3LiquidityAMO is Owned {
         // This is also a sanity check for the int256 math
         uint256 current_collateral_E18 = FRAX.globalCollateralValue();
         uint256 cur_frax_supply = FRAX.totalSupply();
-        uint256 new_frax_supply = cur_frax_supply.add(frax_amount);
-        uint256 new_cr = (current_collateral_E18.mul(PRICE_PRECISION)).div(new_frax_supply);
+        uint256 new_frax_supply = cur_frax_supply + frax_amount;
+        uint256 new_cr = (current_collateral_E18 * PRICE_PRECISION) / new_frax_supply;
         require (new_cr > min_cr, "Minting would cause collateral ratio to be too low");
 
         // Mint the frax 
@@ -436,12 +434,12 @@ contract UniV3LiquidityAMO is Owned {
     // The burn can be called separately later on
     function mintRedeemPart1(uint256 frax_amount) external onlyByOwnerOrGovernance {
         //require(allow_yearn || allow_aave || allow_compound, 'All strategies are currently off');
-        uint256 redeem_amount_E6 = (frax_amount.mul(uint256(1e6).sub(pool.redemption_fee()))).div(1e6).div(10 ** missing_decimals);
-        uint256 expected_collat_amount = redeem_amount_E6.mul(FRAX.global_collateral_ratio()).div(1e6);
-        expected_collat_amount = expected_collat_amount.mul(1e6).div(pool.getCollateralPrice());
+        uint256 redeem_amount_E6 = (frax_amount * uint256(1e6 - pool.redemption_fee())) / 1e6 / 10 ** missing_decimals;
+        uint256 expected_collat_amount = redeem_amount_E6 * FRAX.global_collateral_ratio() / 1e6;
+        expected_collat_amount = expected_collat_amount * 1e6 / pool.getCollateralPrice();
 
-        require(collateralBalance().add(expected_collat_amount) <= collat_borrow_cap, "Borrow cap");
-        borrowed_collat_historical = borrowed_collat_historical.add(expected_collat_amount);
+        require(collateralBalance() + expected_collat_amount <= collat_borrow_cap, "Borrow cap");
+        borrowed_collat_historical = borrowed_collat_historical + expected_collat_amount;
 
         // Mint the frax 
         FRAX.pool_mint(address(this), frax_amount);
