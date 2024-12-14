@@ -20,7 +20,6 @@ pragma solidity >=0.6.11;
 // Jason Huan: https://github.com/jasonhuan
 // Sam Kazemian: https://github.com/samkazemian
 
-import "../Math/SafeMath.sol";
 import "../FXS/FXS.sol";
 import "../Frax/Frax.sol";
 import "../ERC20/ERC20.sol";
@@ -31,7 +30,6 @@ import '../Misc_AMOs/FraxPoolInvestorForV2.sol';
 import '../Uniswap/Interfaces/IUniswapV2Router02.sol';
 
 contract FXS1559_AMO is AccessControl {
-    using SafeMath for uint256;
 
     /* ========== STATE VARIABLES ========== */
 
@@ -95,7 +93,7 @@ contract FXS1559_AMO is AccessControl {
         timelock_address = _timelock_address;
         owner_address = _owner_address;
         custodian_address = _custodian_address;
-        missing_decimals = uint(18).sub(collateral_token.decimals());
+        missing_decimals = uint(18) - collateral_token.decimals();
         
         _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
     }
@@ -121,8 +119,8 @@ contract FXS1559_AMO is AccessControl {
         else {
             uint256[5] memory allocations = InvestorAMO.showAllocations();
             uint256 borrowed_USDC = InvestorAMO.borrowed_balance();
-            unspent_profit_e18 = (allocations[4]).sub(borrowed_USDC);
-            unspent_profit_e18 = unspent_profit_e18.mul(10 ** missing_decimals);
+            unspent_profit_e18 = (allocations[4]) - borrowed_USDC;
+            unspent_profit_e18 = unspent_profit_e18 * 10 ** missing_decimals;
         }
     }
 
@@ -135,15 +133,15 @@ contract FXS1559_AMO is AccessControl {
         global_collateral_ratio = FRAX.global_collateral_ratio();
 
         uint256 frax_total_supply = FRAX.totalSupply();
-        uint256 global_collat_value = (FRAX.globalCollateralValue()).add(unspentInvestorAMOProfit_E18());
-        effective_collateral_ratio = global_collat_value.mul(1e6).div(frax_total_supply); //returns it in 1e6
+        uint256 global_collat_value = (FRAX.globalCollateralValue()) + unspentInvestorAMOProfit_E18();
+        effective_collateral_ratio = global_collat_value * 1e6 / frax_total_supply; //returns it in 1e6
 
         // Same as availableExcessCollatDV() in FraxPool
         if (global_collateral_ratio > COLLATERAL_RATIO_PRECISION) global_collateral_ratio = COLLATERAL_RATIO_PRECISION; // Handles an overcollateralized contract with CR > 1
-        uint256 required_collat_dollar_value_d18 = (frax_total_supply.mul(global_collateral_ratio)).div(COLLATERAL_RATIO_PRECISION); // Calculates collateral needed to back each 1 FRAX with $1 of collateral at current collat ratio
+        uint256 required_collat_dollar_value_d18 = (frax_total_supply * global_collateral_ratio) / COLLATERAL_RATIO_PRECISION; // Calculates collateral needed to back each 1 FRAX with $1 of collateral at current collat ratio
         if (global_collat_value > required_collat_dollar_value_d18) {
-            excess_collateral_e18 = global_collat_value.sub(required_collat_dollar_value_d18);
-            frax_mintable = excess_collateral_e18.mul(COLLATERAL_RATIO_PRECISION).div(global_collateral_ratio);
+            excess_collateral_e18 = global_collat_value - required_collat_dollar_value_d18;
+            frax_mintable = excess_collateral_e18 * COLLATERAL_RATIO_PRECISION / global_collateral_ratio;
         }
         else {
             excess_collateral_e18 = 0;
@@ -167,14 +165,14 @@ contract FXS1559_AMO is AccessControl {
         require(FRAX.global_collateral_ratio() > min_cr, "CR already too low");
 
         // Make sure the FRAX minting wouldn't push the CR down too much
-        uint256 current_collateral_E18 = (FRAX.globalCollateralValue()).add(unspentInvestorAMOProfit_E18());
+        uint256 current_collateral_E18 = (FRAX.globalCollateralValue()) + unspentInvestorAMOProfit_E18();
         uint256 cur_frax_supply = FRAX.totalSupply();
-        uint256 new_frax_supply = cur_frax_supply.add(frax_amount);
-        uint256 new_cr = (current_collateral_E18.mul(PRICE_PRECISION)).div(new_frax_supply);
+        uint256 new_frax_supply = cur_frax_supply + frax_amount;
+        uint256 new_cr = (current_collateral_E18 * PRICE_PRECISION) / new_frax_supply;
         require(new_cr > min_cr, "CR would be too low");
 
         // Mint the frax 
-        minted_sum_historical = minted_sum_historical.add(frax_amount);
+        minted_sum_historical = minted_sum_historical + frax_amount;
         FRAX.pool_mint(address(this), frax_amount);
     }
 
@@ -190,8 +188,8 @@ contract FXS1559_AMO is AccessControl {
         FRAX_FXS_PATH[0] = frax_address;
         FRAX_FXS_PATH[1] = fxs_address;
 
-        uint256 min_fxs_out = frax_amount.mul(PRICE_PRECISION).div(fxs_price);
-        min_fxs_out = min_fxs_out.sub(min_fxs_out.mul(max_slippage).div(PRICE_PRECISION));
+        uint256 min_fxs_out = frax_amount * PRICE_PRECISION / fxs_price;
+        min_fxs_out = min_fxs_out - min_fxs_out * max_slippage / PRICE_PRECISION;
 
         // Buy some FXS with FRAX
         (uint[] memory amounts) = UniRouterV2.swapExactTokensForTokens(
@@ -209,7 +207,7 @@ contract FXS1559_AMO is AccessControl {
     function mintSwapBurn(uint256 override_USDC_amount, bool use_override) public onlyByOwnGov {
         uint256 mintable_frax;
         if (use_override){
-            mintable_frax = override_USDC_amount.mul(10 ** missing_decimals).mul(COLLATERAL_RATIO_PRECISION).div(FRAX.global_collateral_ratio());
+            mintable_frax = override_USDC_amount * 10 ** missing_decimals * COLLATERAL_RATIO_PRECISION / FRAX.global_collateral_ratio();
         }
         else {
             (, , , mintable_frax) = cr_info();
@@ -222,7 +220,7 @@ contract FXS1559_AMO is AccessControl {
     // Burn unneeded or excess FRAX
     function burnFRAX(uint256 frax_amount) public onlyByOwnGov {
         FRAX.burn(frax_amount);
-        burned_sum_historical = burned_sum_historical.add(frax_amount);
+        burned_sum_historical = burned_sum_historical + frax_amount;
     }
 
     // Burn unneeded FXS
