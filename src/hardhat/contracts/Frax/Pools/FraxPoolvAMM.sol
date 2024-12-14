@@ -27,7 +27,6 @@ pragma solidity >=0.6.11;
 
 
 import "../../Math/Math.sol";
-import "../../Math/SafeMath.sol";
 import "../../FXS/FXS.sol";
 import "../../Frax/Frax.sol";
 import "../../ERC20/ERC20.sol";
@@ -36,7 +35,6 @@ import "../../Oracle/UniswapPairOracle.sol";
 import "../../Governance/AccessControl.sol";
 
 contract FraxPoolvAMM is AccessControl {
-    using SafeMath for uint256;
     
     ERC20 private collateral_token;
     FRAXStablecoin private FRAX;
@@ -165,7 +163,7 @@ contract FraxPoolvAMM is AccessControl {
         pool_ceiling = _pool_ceiling;
         uniswap_factory = _uniswap_factory_address;
 
-        missing_decimals = uint(18).sub(collateral_token.decimals());
+        missing_decimals = uint(18) - collateral_token.decimals();
         pool_ceiling = 100000e6;
         pausedPrice = 0;
         bonus_rate = 0;
@@ -179,8 +177,8 @@ contract FraxPoolvAMM is AccessControl {
 
         drift_refresh_period = 900;
 
-        last_update_time = block.timestamp.sub(drift_refresh_period + 1);
-        drift_end_time = block.timestamp.sub(1);
+        last_update_time = block.timestamp - drift_refresh_period + 1;
+        drift_end_time = block.timestamp - 1;
 
         fxs_usdc_oracle_address = _fxs_usdc_oracle_addr;
         fxsUSDCOracle = UniswapPairOracle(_fxs_usdc_oracle_addr);
@@ -211,9 +209,9 @@ contract FraxPoolvAMM is AccessControl {
     function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut, uint the_fee) public pure returns (uint amountOut) {
         require(amountIn > 0, 'FRAX_vAMM: INSUFFICIENT_INPUT_AMOUNT');
         require(reserveIn > 0 && reserveOut > 0, 'FRAX_vAMM: INSUFFICIENT_LIQUIDITY');
-        uint amountInWithFee = amountIn.mul(uint(1e6).sub(the_fee));
-        uint numerator = amountInWithFee.mul(reserveOut);
-        uint denominator = (reserveIn.mul(1e6)).add(amountInWithFee);
+        uint amountInWithFee = amountIn * uint(1e6 - the_fee);
+        uint numerator = amountInWithFee * reserveOut;
+        uint denominator = (reserveIn * 1e6) + amountInWithFee;
         amountOut = numerator / denominator;
     }
 
@@ -230,21 +228,21 @@ contract FraxPoolvAMM is AccessControl {
         if (drift_end_time > last_update_time) {
             drift_time = Math.min(block.timestamp, drift_end_time) - last_update_time;
             if (drift_time > 0) {
-                if (drift_fxs_positive > 0) current_fxs_virtual_reserves = current_fxs_virtual_reserves.add(drift_fxs_positive.mul(drift_time));
-                else current_fxs_virtual_reserves = current_fxs_virtual_reserves.sub(drift_fxs_negative.mul(drift_time));
+                if (drift_fxs_positive > 0) current_fxs_virtual_reserves = current_fxs_virtual_reserves + drift_fxs_positive * drift_time;
+                else current_fxs_virtual_reserves = current_fxs_virtual_reserves - drift_fxs_negative * drift_time;
                 
-                if (drift_collat_positive > 0) current_collat_virtual_reserves = current_collat_virtual_reserves.add(drift_collat_positive.mul(drift_time));
-                else current_collat_virtual_reserves = current_collat_virtual_reserves.sub(drift_collat_negative.mul(drift_time));
+                if (drift_collat_positive > 0) current_collat_virtual_reserves = current_collat_virtual_reserves + drift_collat_positive * drift_time;
+                else current_collat_virtual_reserves = current_collat_virtual_reserves - drift_collat_negative * drift_time;
             }
         }
-        average_fxs_virtual_reserves = fxs_virtual_reserves.add(current_fxs_virtual_reserves).div(2);
-        average_collat_virtual_reserves = collat_virtual_reserves.add(current_collat_virtual_reserves).div(2);
+        average_fxs_virtual_reserves = fxs_virtual_reserves + current_fxs_virtual_reserves / 2;
+        average_collat_virtual_reserves = collat_virtual_reserves + current_collat_virtual_reserves / 2;
         
         // Adjust for when time was split between drift and no drift.
         uint time_elapsed = block.timestamp - last_update_time;
         if (time_elapsed > drift_time && drift_time > 0) {
-            average_fxs_virtual_reserves = average_fxs_virtual_reserves.mul(drift_time).add(current_fxs_virtual_reserves.mul(time_elapsed.sub(drift_time))).div(time_elapsed);
-            average_collat_virtual_reserves = average_collat_virtual_reserves.mul(drift_time).add(current_collat_virtual_reserves.mul(time_elapsed.sub(drift_time))).div(time_elapsed);
+            average_fxs_virtual_reserves = average_fxs_virtual_reserves * drift_time + current_fxs_virtual_reserves * time_elapsed - drift_time / time_elapsed;
+            average_collat_virtual_reserves = average_collat_virtual_reserves * drift_time + current_collat_virtual_reserves * time_elapsed - drift_time / time_elapsed;
         }
     }
 
@@ -259,51 +257,51 @@ contract FraxPoolvAMM is AccessControl {
         
         // Calculate the reserves at the average internal price over the last period and the current K
         uint time_elapsed = block.timestamp - last_drift_refresh;
-        uint average_period_price_fxs = (fxs_price_cumulative - fxs_price_cumulative_prev).div(time_elapsed);
-        uint internal_k = current_fxs_virtual_reserves.mul(current_collat_virtual_reserves);
-        uint collat_reserves_average_price = sqrt(internal_k.mul(average_period_price_fxs));
-        uint fxs_reserves_average_price = internal_k.div(collat_reserves_average_price);
+        uint average_period_price_fxs = (fxs_price_cumulative - fxs_price_cumulative_prev) / time_elapsed;
+        uint internal_k = current_fxs_virtual_reserves * current_collat_virtual_reserves;
+        uint collat_reserves_average_price = sqrt(internal_k * average_period_price_fxs);
+        uint fxs_reserves_average_price = internal_k / collat_reserves_average_price;
         
         // Calculate the reserves at the average external price over the last period and the target K
         (uint ext_average_fxs_usd_price, uint ext_k) = getOracleInfo();
         uint targetK = internal_k > ext_k
-            ? Math.max(ext_k, internal_k.sub(internal_k.div(100)))  // Decrease or
-            : Math.min(ext_k, internal_k.add(internal_k.div(100))); // Increase K no more than 1% per period
-        uint ext_collat_reserves_average_price = sqrt(targetK.mul(ext_average_fxs_usd_price));
-        uint ext_fxs_reserves_average_price = targetK.div(ext_collat_reserves_average_price);
+            ? Math.max(ext_k, internal_k - internal_k / 100)  // Decrease or
+            : Math.min(ext_k, internal_k + internal_k / 100); // Increase K no more than 1% per period
+        uint ext_collat_reserves_average_price = sqrt(targetK * ext_average_fxs_usd_price);
+        uint ext_fxs_reserves_average_price = targetK / ext_collat_reserves_average_price;
         
         // Calculate the drifts per second
         if (collat_reserves_average_price < ext_collat_reserves_average_price) {
-            drift_collat_positive = (ext_collat_reserves_average_price - collat_reserves_average_price).div(drift_refresh_period);
+            drift_collat_positive = (ext_collat_reserves_average_price - collat_reserves_average_price) / drift_refresh_period;
             drift_collat_negative = 0;
         } else {
             drift_collat_positive = 0;
-            drift_collat_negative = (collat_reserves_average_price - ext_collat_reserves_average_price).div(drift_refresh_period);
+            drift_collat_negative = (collat_reserves_average_price - ext_collat_reserves_average_price) / drift_refresh_period;
         }
 
         if (fxs_reserves_average_price < ext_fxs_reserves_average_price) {
-            drift_fxs_positive = (ext_fxs_reserves_average_price - fxs_reserves_average_price).div(drift_refresh_period);
+            drift_fxs_positive = (ext_fxs_reserves_average_price - fxs_reserves_average_price) / drift_refresh_period;
             drift_fxs_negative = 0;
         } else {
             drift_fxs_positive = 0;
-            drift_fxs_negative = (fxs_reserves_average_price - ext_fxs_reserves_average_price).div(drift_refresh_period);
+            drift_fxs_negative = (fxs_reserves_average_price - ext_fxs_reserves_average_price) / drift_refresh_period;
         }
         
         fxs_price_cumulative_prev = fxs_price_cumulative;
         last_drift_refresh = block.timestamp;
-        drift_end_time = block.timestamp.add(drift_refresh_period);
+        drift_end_time = block.timestamp + drift_refresh_period;
     }
     
     // Gets the external average fxs price over the previous period and the external K
     function getOracleInfo() public view returns (uint ext_average_fxs_usd_price, uint ext_k) {
         ext_average_fxs_usd_price = fxsUSDCOracle.consult(fxs_contract_address, 1e18);
         (uint112 reserve0, uint112 reserve1, ) = fxsUSDCOracle.pair().getReserves();
-        ext_k = uint(reserve0).mul(uint(reserve1));
+        ext_k = uint(reserve0) * uint(reserve1);
     }
 
     // Needed for compatibility with FraxPool standard
     function collatDollarBalance() public view returns (uint256) {
-        return (collateral_token.balanceOf(address(this)).add(collateral_invested).sub(unclaimedPoolCollateral)).mul(10 ** missing_decimals);
+        return (collateral_token.balanceOf(address(this)) + collateral_invested - unclaimedPoolCollateral) * 10 ** missing_decimals;
     }
 
     function availableExcessCollatDV() public view returns (uint256) {
@@ -311,18 +309,18 @@ contract FraxPoolvAMM is AccessControl {
         uint256 global_collateral_ratio = FRAX.global_collateral_ratio();
         uint256 global_collat_value = FRAX.globalCollateralValue();
 
-        uint256 target_collat_value = total_supply.mul(global_collateral_ratio).div(1e6);
+        uint256 target_collat_value = total_supply * global_collateral_ratio / 1e6;
 
         if(global_collat_value > target_collat_value){
-            return global_collat_value.sub(target_collat_value);
+            return global_collat_value - target_collat_value;
         } else {
             return 0;
         }
     }
 
     function availableForInvestment() public view returns (uint256 max_invest) {
-        uint256 curr_pool_bal = collateral_token.balanceOf(address(this)).add(collateral_invested).sub(unclaimedPoolCollateral);
-        max_invest = curr_pool_bal.mul(global_investment_cap_percentage).div(1e6);
+        uint256 curr_pool_bal = collateral_token.balanceOf(address(this)) + collateral_invested - unclaimedPoolCollateral;
+        max_invest = curr_pool_bal * global_investment_cap_percentage / 1e6;
     }
 
     /* ========== INTERNAL ========== */
@@ -337,7 +335,7 @@ contract FraxPoolvAMM is AccessControl {
     ) private {
         uint time_elapsed = block.timestamp - last_update_time; 
         if (time_elapsed > 0) {
-            fxs_price_cumulative += average_fxs_virtual_reserves.mul(1e18).div(average_collat_virtual_reserves).mul(time_elapsed);
+            fxs_price_cumulative += average_fxs_virtual_reserves * 1e18 / average_collat_virtual_reserves * time_elapsed;
         }
         fxs_virtual_reserves = current_fxs_virtual_reserves;
         collat_virtual_reserves = current_collat_virtual_reserves;
@@ -355,33 +353,33 @@ contract FraxPoolvAMM is AccessControl {
         uint256 collat_needed;
         uint256 fxs_needed;
         if (global_collateral_ratio == 1e6) { // 1-to-1
-            total_frax_mint = collateral_amount.mul(10 ** missing_decimals);
+            total_frax_mint = collateral_amount * 10 ** missing_decimals;
             collat_needed = collateral_amount;
             fxs_needed = 0;
         } else if (global_collateral_ratio == 0) { // Algorithmic
             // Assumes 1 collat = 1 FRAX at all times 
             total_frax_mint = getAmountOut(fxs_amount, fxs_virtual_reserves, collat_virtual_reserves, minting_fee);
-            _update(fxs_virtual_reserves.add(fxs_amount), collat_virtual_reserves.sub(total_frax_mint), fxs_virtual_reserves, collat_virtual_reserves);
+            _update(fxs_virtual_reserves + fxs_amount, collat_virtual_reserves - total_frax_mint, fxs_virtual_reserves, collat_virtual_reserves);
 
-            total_frax_mint = total_frax_mint.mul(10 ** missing_decimals);
+            total_frax_mint = total_frax_mint * 10 ** missing_decimals;
             collat_needed = 0;
             fxs_needed = fxs_amount;
         } else { // Fractional
             // Assumes 1 collat = 1 FRAX at all times 
             uint256 frax_mint_from_fxs = getAmountOut(fxs_amount, fxs_virtual_reserves, collat_virtual_reserves, minting_fee);
-            _update(fxs_virtual_reserves.add(fxs_amount), collat_virtual_reserves.sub(frax_mint_from_fxs), fxs_virtual_reserves, collat_virtual_reserves);
+            _update(fxs_virtual_reserves + fxs_amount, collat_virtual_reserves - frax_mint_from_fxs, fxs_virtual_reserves, collat_virtual_reserves);
 
-            collat_needed = frax_mint_from_fxs.mul(1e6).div(uint(1e6).sub(global_collateral_ratio)); // find collat needed at collateral ratio
+            collat_needed = frax_mint_from_fxs * 1e6 / uint(1e6 - global_collateral_ratio); // find collat needed at collateral ratio
             require(collat_needed <= collateral_amount, "Not enough collateral inputted");
 
-            uint256 frax_mint_from_collat = collat_needed.mul(10 ** missing_decimals);
-            frax_mint_from_fxs = frax_mint_from_fxs.mul(10 ** missing_decimals);
-            total_frax_mint = frax_mint_from_fxs.add(frax_mint_from_collat);
+            uint256 frax_mint_from_collat = collat_needed * 10 ** missing_decimals;
+            frax_mint_from_fxs = frax_mint_from_fxs * 10 ** missing_decimals;
+            total_frax_mint = frax_mint_from_fxs + frax_mint_from_collat;
             fxs_needed = fxs_amount;
         }
 
         require(total_frax_mint >= FRAX_out_min, "Slippage limit reached");
-        require(collateral_token.balanceOf(address(this)).add(collateral_invested).sub(unclaimedPoolCollateral).add(collat_needed) <= pool_ceiling, "Pool ceiling reached, no more FRAX can be minted with this collateral");
+        require(collateral_token.balanceOf(address(this)) + collateral_invested - unclaimedPoolCollateral + collat_needed <= pool_ceiling, "Pool ceiling reached, no more FRAX can be minted with this collateral");
 
         FXS.pool_burn_from(msg.sender, fxs_needed);
         collateral_token.transferFrom(msg.sender, address(this), collat_needed);
@@ -390,7 +388,7 @@ contract FraxPoolvAMM is AccessControl {
         // Using collateral_needed here could cause problems if the reserves are off
         // Useful in case of a sandwich attack or some other fault with the virtual reserves
         // Assumes $1 collateral (USDC, USDT, DAI, etc)
-        require(total_frax_mint <= collateral_amount.mul(10 ** missing_decimals).mul(uint256(1e6).add(max_drift_band)).div(global_collateral_ratio), "[max_drift_band] Too much FRAX being minted");
+        require(total_frax_mint <= collateral_amount * 10 ** missing_decimals * uint256(1e6 + max_drift_band) / global_collateral_ratio, "[max_drift_band] Too much FRAX being minted");
         FRAX.pool_mint(msg.sender, total_frax_mint);
 
         return (total_frax_mint, collat_needed, fxs_needed);
@@ -402,7 +400,7 @@ contract FraxPoolvAMM is AccessControl {
         uint256 collat_out;
         uint256 fxs_out;
 
-        uint256 collat_equivalent = FRAX_amount.div(10 ** missing_decimals);
+        uint256 collat_equivalent = FRAX_amount / 10 ** missing_decimals;
 
         if(global_collateral_ratio == 1e6) { // 1-to-1
             collat_out = collat_equivalent;
@@ -412,15 +410,15 @@ contract FraxPoolvAMM is AccessControl {
             fxs_out = getAmountOut(collat_equivalent, collat_virtual_reserves, fxs_virtual_reserves, redemption_fee); // switch FRAX to units of collateral and swap
             collat_out = 0;
 
-            _update(fxs_virtual_reserves.sub(fxs_out), collat_virtual_reserves.add(collat_equivalent), fxs_virtual_reserves, collat_virtual_reserves);
+            _update(fxs_virtual_reserves - fxs_out, collat_virtual_reserves + collat_equivalent, fxs_virtual_reserves, collat_virtual_reserves);
         } else { // Fractional
-            collat_out = collat_equivalent.mul(global_collateral_ratio).div(1e6);
-            fxs_out = getAmountOut(collat_equivalent.mul((uint(1e6).sub(global_collateral_ratio))).div(1e6), collat_virtual_reserves, fxs_virtual_reserves, redemption_fee);
+            collat_out = collat_equivalent * global_collateral_ratio / 1e6;
+            fxs_out = getAmountOut(collat_equivalent * (uint(1e6 - global_collateral_ratio)) / 1e6, collat_virtual_reserves, fxs_virtual_reserves, redemption_fee);
 
-            _update(fxs_virtual_reserves.sub(fxs_out), collat_virtual_reserves.add(collat_equivalent.mul((uint(1e6).sub(global_collateral_ratio))).div(1e6)), fxs_virtual_reserves, collat_virtual_reserves);
+            _update(fxs_virtual_reserves - fxs_out, collat_virtual_reserves + collat_equivalent * (uint(1e6 - global_collateral_ratio) / 1e6), fxs_virtual_reserves, collat_virtual_reserves);
         }
 
-        require(collat_out <= collateral_token.balanceOf(address(this)).sub(unclaimedPoolCollateral), "Not enough collateral in pool");
+        require(collat_out <= collateral_token.balanceOf(address(this)) - unclaimedPoolCollateral, "Not enough collateral in pool");
         require(collat_out >= collateral_out_min, "Slippage limit reached [collateral]");
         require(fxs_out >= fxs_out_min, "Slippage limit reached [FXS]");
 
@@ -432,13 +430,13 @@ contract FraxPoolvAMM is AccessControl {
         // traded and that may approximate a sane transaction.
         // Alternatively, maybe it could be done as it is done on lines 496 and 497.
 
-        require(collat_out.mul(10 ** missing_decimals) <= FRAX_amount.mul(global_collateral_ratio).mul(uint256(1e6).add(max_drift_band)).div(1e12), "[max_drift_band] Too much collateral being released");
+        require(collat_out * 10 ** missing_decimals <= FRAX_amount * global_collateral_ratio * uint256(1e6 + max_drift_band) / 1e12, "[max_drift_band] Too much collateral being released");
         
-        redeemCollateralBalances[msg.sender] = redeemCollateralBalances[msg.sender].add(collat_out);
-        unclaimedPoolCollateral = unclaimedPoolCollateral.add(collat_out);
+        redeemCollateralBalances[msg.sender] = redeemCollateralBalances[msg.sender] + collat_out;
+        unclaimedPoolCollateral = unclaimedPoolCollateral + collat_out;
 
-        redeemFXSBalances[msg.sender] = redeemFXSBalances[msg.sender].add(fxs_out);
-        unclaimedPoolFXS = unclaimedPoolFXS.add(fxs_out);
+        redeemFXSBalances[msg.sender] = redeemFXSBalances[msg.sender] + fxs_out;
+        unclaimedPoolFXS = unclaimedPoolFXS + fxs_out;
 
         lastRedeemed[msg.sender] = block.number;
 
@@ -452,7 +450,7 @@ contract FraxPoolvAMM is AccessControl {
     // contract to the user. Redemption is split into two functions to prevent flash loans from being able
     // to take out FRAX/collateral from the system, use an AMM to trade the new price, and then mint back into the system.
     function collectRedemption() external returns (uint256, uint256){
-        require((lastRedeemed[msg.sender].add(redemption_delay)) <= block.number, "Must wait for redemption_delay blocks before collecting redemption");
+        require((lastRedeemed[msg.sender] + redemption_delay) <= block.number, "Must wait for redemption_delay blocks before collecting redemption");
         bool sendFXS = false;
         bool sendCollateral = false;
         uint FXSAmount;
@@ -462,7 +460,7 @@ contract FraxPoolvAMM is AccessControl {
         if(redeemFXSBalances[msg.sender] > 0){
             FXSAmount = redeemFXSBalances[msg.sender];
             redeemFXSBalances[msg.sender] = 0;
-            unclaimedPoolFXS = unclaimedPoolFXS.sub(FXSAmount);
+            unclaimedPoolFXS = unclaimedPoolFXS - FXSAmount;
 
             sendFXS = true;
         }
@@ -470,7 +468,7 @@ contract FraxPoolvAMM is AccessControl {
         if(redeemCollateralBalances[msg.sender] > 0){
             CollateralAmount = redeemCollateralBalances[msg.sender];
             redeemCollateralBalances[msg.sender] = 0;
-            unclaimedPoolCollateral = unclaimedPoolCollateral.sub(CollateralAmount);
+            unclaimedPoolCollateral = unclaimedPoolCollateral - CollateralAmount;
 
             sendCollateral = true;
         }
@@ -489,15 +487,15 @@ contract FraxPoolvAMM is AccessControl {
         require(recollateralizePaused == false, "Recollateralize is paused");
         uint256 fxs_out = getAmountOut(collateral_amount, collat_virtual_reserves, fxs_virtual_reserves, recollat_fee);
 
-        _update(fxs_virtual_reserves.sub(fxs_out), collat_virtual_reserves.add(collateral_amount), fxs_virtual_reserves, collat_virtual_reserves);
+        _update(fxs_virtual_reserves - fxs_out, collat_virtual_reserves + collateral_amount, fxs_virtual_reserves, collat_virtual_reserves);
         require(fxs_out >= FXS_out_min, "Slippage limit reached");
 
         uint256 total_supply = FRAX.totalSupply();
         uint256 global_collateral_ratio = FRAX.global_collateral_ratio();
         uint256 global_collat_value = FRAX.globalCollateralValue();
-        uint256 target_collat_value = total_supply.mul(global_collateral_ratio);
+        uint256 target_collat_value = total_supply * global_collateral_ratio;
 
-        require(target_collat_value >= global_collat_value + collateral_amount.mul(10 ** missing_decimals), "Too much recollateralize inputted");
+        require(target_collat_value >= global_collat_value + collateral_amount * 10 ** missing_decimals, "Too much recollateralize inputted");
 
         collateral_token.transferFrom(msg.sender, address(this), collateral_amount);
         
@@ -506,10 +504,10 @@ contract FraxPoolvAMM is AccessControl {
         // Useful in case of a sandwich attack or some other fault with the virtual reserves
         // Assumes $1 collateral (USDC, USDT, DAI, etc)
         uint256 fxs_price = fxsUSDCOracle.consult(fxs_contract_address, 1e18); // comes out e6
-        require(fxs_out.mul(fxs_price).div(1e6) <= collateral_amount.mul(10 ** missing_decimals).mul(uint256(1e6).add(max_drift_band)).div(1e6), "[max_drift_band] Too much FXS being released");
+        require(fxs_out * fxs_price / 1e6 <= collateral_amount * 10 ** missing_decimals * uint256(1e6 + max_drift_band) / 1e6, "[max_drift_band] Too much FXS being released");
         
         // Add in the bonus
-        fxs_out = fxs_out.add(fxs_out.mul(bonus_rate).div(1e6));
+        fxs_out = fxs_out + fxs_out * bonus_rate / 1e6;
 
         FXS.pool_mint(msg.sender, fxs_out);
 
@@ -518,13 +516,13 @@ contract FraxPoolvAMM is AccessControl {
 
     function buyBackFXS(uint256 FXS_amount, uint256 COLLATERAL_out_min) external returns (uint256, uint256) {
         require(buyBackPaused == false, "Buyback is paused");
-        uint256 buyback_available = availableExcessCollatDV().div(10 ** missing_decimals);
+        uint256 buyback_available = availableExcessCollatDV() / 10 ** missing_decimals;
         uint256 collat_out = getAmountOut(FXS_amount, fxs_virtual_reserves, collat_virtual_reserves, buyback_fee);
 
         require(buyback_available > 0, "Zero buyback available");
         require(collat_out <= buyback_available, "Not enough buyback available");
         require(collat_out >= COLLATERAL_out_min, "Slippage limit reached");
-        _update(fxs_virtual_reserves.sub(FXS_amount), collat_virtual_reserves.add(collat_out), fxs_virtual_reserves, collat_virtual_reserves);
+        _update(fxs_virtual_reserves - FXS_amount, collat_virtual_reserves + collat_out, fxs_virtual_reserves, collat_virtual_reserves);
 
         FXS.pool_burn_from(msg.sender, FXS_amount);
 
@@ -532,7 +530,7 @@ contract FraxPoolvAMM is AccessControl {
         // Useful in case of a sandwich attack or some other fault with the virtual reserves
         // Assumes $1 collateral (USDC, USDT, DAI, etc)
         uint256 fxs_price = fxsUSDCOracle.consult(fxs_contract_address, 1e18); // comes out e6
-        require(collat_out.mul(10 ** missing_decimals) <= FXS_amount.mul(fxs_price).mul(uint256(1e6).add(max_drift_band)).div(1e12), "[max_drift_band] Too much collateral being released");
+        require(collat_out * 10 ** missing_decimals <= FXS_amount * fxs_price * uint256(1e6 + max_drift_band) / 1e12, "[max_drift_band] Too much collateral being released");
         
         collateral_token.transfer(msg.sender, collat_out);
 
@@ -542,15 +540,15 @@ contract FraxPoolvAMM is AccessControl {
     // Send collateral to investor contract
     // Called by INVESTOR CONTRACT
     function takeOutCollat_Inv(uint256 amount) external onlyInvestor {
-        require(collateral_invested.add(amount) <= availableForInvestment(), 'Investment cap reached');
-        collateral_invested = collateral_invested.add(amount);
+        require(collateral_invested + amount <= availableForInvestment(), 'Investment cap reached');
+        collateral_invested = collateral_invested + amount;
         collateral_token.transfer(investor_contract_address, amount);
     }
 
     // Deposit collateral back to this contract
     // Called by INVESTOR CONTRACT
     function putBackCollat_Inv(uint256 amount) external onlyInvestor {
-        if (amount < collateral_invested) collateral_invested = collateral_invested.sub(amount);
+        if (amount < collateral_invested) collateral_invested = collateral_invested - amount;
         else collateral_invested = 0;
         collateral_token.transferFrom(investor_contract_address, address(this), amount);
     }
