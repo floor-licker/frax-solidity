@@ -44,7 +44,6 @@ import "../Uniswap_V3/IUniswapV3Pool.sol";
 import "../Uniswap_V3/ISwapRouter.sol";
 
 contract ComboOracle_UniV2_UniV3_Zenlink is Owned {
-    using SafeMath for uint256;
     using HomoraMath for uint256;
     
     /* ========== STATE VARIABLES ========== */
