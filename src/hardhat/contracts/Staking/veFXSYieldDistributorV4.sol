@@ -27,7 +27,6 @@ pragma solidity >=0.8.0;
 // https://github.com/Synthetixio/synthetix/blob/develop/contracts/StakingRewards.sol
 
 import "../Math/Math.sol";
-import "../Math/SafeMath.sol";
 import "../Curve/IveFXS.sol";
 import "../Uniswap/TransferHelper.sol";
 import "../ERC20/ERC20.sol";
@@ -36,7 +35,6 @@ import "../Utils/ReentrancyGuard.sol";
 import "./Owned.sol";
 
 contract veFXSYieldDistributorV4 is Owned, ReentrancyGuard {
-    using SafeMath for uint256;
     using SafeERC20 for ERC20;
 
     /* ========== STATE VARIABLES ========== */
@@ -123,7 +121,7 @@ contract veFXSYieldDistributorV4 is Owned, ReentrancyGuard {
     /* ========== VIEWS ========== */
 
     function fractionParticipating() external view returns (uint256) {
-        return totalVeFXSParticipating.mul(PRICE_PRECISION).div(totalVeFXSSupplyStored);
+        return totalVeFXSParticipating * PRICE_PRECISION / totalVeFXSSupplyStored;
     }
 
     // Only positions with locked veFXS can accrue yield. Otherwise, expired-locked veFXS
@@ -157,10 +155,10 @@ contract veFXSYieldDistributorV4 is Owned, ReentrancyGuard {
             return (
                 yieldPerVeFXSStored.add(
                     lastTimeYieldApplicable()
-                        .sub(lastUpdateTime)
-                        .mul(yieldRate)
-                        .mul(1e18)
-                        .div(totalVeFXSSupplyStored)
+                         - lastUpdateTime
+                         * yieldRate
+                         * 1e18
+                         / totalVeFXSSupplyStored
                 )
             );
         }
@@ -183,9 +181,9 @@ contract veFXSYieldDistributorV4 is Owned, ReentrancyGuard {
             }
             // You haven't claimed yet
             else {
-                uint256 eligible_time = (ending_timestamp).sub(lastRewardClaimTime[account]);
-                uint256 total_time = (block.timestamp).sub(lastRewardClaimTime[account]);
-                eligible_time_fraction = PRICE_PRECISION.mul(eligible_time).div(total_time);
+                uint256 eligible_time = (ending_timestamp) - lastRewardClaimTime[account];
+                uint256 total_time = (block.timestamp) - lastRewardClaimTime[account];
+                eligible_time_fraction = PRICE_PRECISION * eligible_time / total_time;
             }
         }
 
@@ -198,21 +196,21 @@ contract veFXSYieldDistributorV4 is Owned, ReentrancyGuard {
                 vefxs_balance_to_use = old_vefxs_balance;
             }
             else {
-                vefxs_balance_to_use = ((eligible_current_vefxs).add(old_vefxs_balance)).div(2); 
+                vefxs_balance_to_use = ((eligible_current_vefxs) + old_vefxs_balance) / 2; 
             }
         }
 
         return (
             vefxs_balance_to_use
-                .mul(yieldPerVeFXS().sub(userYieldPerTokenPaid[account]))
-                .mul(eligible_time_fraction)
-                .div(1e18 * PRICE_PRECISION)
-                .add(yields[account])
+                 * yieldPerVeFXS( - userYieldPerTokenPaid[account])
+                 * eligible_time_fraction
+                 / 1e18 * PRICE_PRECISION
+                 + yields[account]
         );
     }
 
     function getYieldForDuration() external view returns (uint256) {
-        return (yieldRate.mul(yieldDuration));
+        return (yieldRate * yieldDuration);
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */
@@ -237,11 +235,11 @@ contract veFXSYieldDistributorV4 is Owned, ReentrancyGuard {
 
         // Update the total amount participating
         if (new_vefxs_balance >= old_vefxs_balance) {
-            uint256 weight_diff = new_vefxs_balance.sub(old_vefxs_balance);
-            totalVeFXSParticipating = totalVeFXSParticipating.add(weight_diff);
+            uint256 weight_diff = new_vefxs_balance - old_vefxs_balance;
+            totalVeFXSParticipating = totalVeFXSParticipating + weight_diff;
         } else {
-            uint256 weight_diff = old_vefxs_balance.sub(new_vefxs_balance);
-            totalVeFXSParticipating = totalVeFXSParticipating.sub(weight_diff);
+            uint256 weight_diff = old_vefxs_balance - new_vefxs_balance;
+            totalVeFXSParticipating = totalVeFXSParticipating - weight_diff;
         }
 
         // Mark the user as initialized
@@ -307,16 +305,16 @@ contract veFXSYieldDistributorV4 is Owned, ReentrancyGuard {
 
         // Update the new yieldRate
         if (block.timestamp >= periodFinish) {
-            yieldRate = amount.div(yieldDuration);
+            yieldRate = amount / yieldDuration;
         } else {
-            uint256 remaining = periodFinish.sub(block.timestamp);
-            uint256 leftover = remaining.mul(yieldRate);
-            yieldRate = amount.add(leftover).div(yieldDuration);
+            uint256 remaining = periodFinish - block.timestamp;
+            uint256 leftover = remaining * yieldRate;
+            yieldRate = amount + leftover / yieldDuration;
         }
         
         // Update duration-related info
         lastUpdateTime = block.timestamp;
-        periodFinish = block.timestamp.add(yieldDuration);
+        periodFinish = block.timestamp + yieldDuration;
 
         emit RewardAdded(amount, yieldRate);
     }
