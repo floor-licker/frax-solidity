@@ -36,7 +36,6 @@ pragma experimental ABIEncoderV2;
 // https://raw.githubusercontent.com/Synthetixio/synthetix/develop/contracts/StakingRewards.sol
 
 import "../Math/Math.sol";
-import "../Math/SafeMath.sol";
 import "../ERC20/ERC20.sol";
 import "../Curve/IveFXS.sol";
 import "../ERC20/SafeERC20.sol";
@@ -69,7 +68,6 @@ import "../Utils/ReentrancyGuard.sol";
 import "./Owned.sol";
 
 contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
-    using SafeMath for uint256;
     using SafeERC20 for ERC20;
 
     /* ========== STATE VARIABLES ========== */
@@ -267,7 +265,7 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
 
         // Initialization
         lastUpdateTime = block.timestamp;
-        periodFinish = block.timestamp.add(rewardsDuration);
+        periodFinish = block.timestamp + rewardsDuration;
 
     }
 
@@ -304,7 +302,7 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
         //     (uint256 reserve0, uint256 reserve1) = stakingToken.getUnderlyingBalances();
         //     uint256 total_frax_reserves = frax_is_token0 ? reserve0 : reserve1;
 
-        //     frax_per_lp_token = total_frax_reserves.mul(1e18).div(stakingToken.totalSupply());
+        //     frax_per_lp_token = total_frax_reserves * 1e18 / stakingToken.totalSupply();
         // }
 
         // mStable
@@ -313,7 +311,7 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
         //     uint256 total_frax_reserves;
         //     (, IFeederPool.BassetData memory vaultData) = (stakingToken.getBasset(frax_address));
         //     total_frax_reserves = uint256(vaultData.vaultBalance);
-        //     frax_per_lp_token = total_frax_reserves.mul(1e18).div(stakingToken.totalSupply());
+        //     frax_per_lp_token = total_frax_reserves * 1e18 / stakingToken.totalSupply();
         // }
 
         // StakeDAO sdETH-FraxPut Vault
@@ -322,7 +320,7 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
            uint256 frax3crv_held = stakingToken.totalUnderlyingControlled();
         
            // Optimistically assume 50/50 FRAX/3CRV ratio in the metapool to save gas
-           frax_per_lp_token = (frax3crv_held.mul(1e18).div(stakingToken.totalSupply())) / 2;
+           frax_per_lp_token = (frax3crv_held * 1e18 / stakingToken.totalSupply()) / 2;
         }
 
         // StakeDAO Vault
@@ -331,7 +329,7 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
         //    uint256 frax3crv_held = stakingToken.balance();
         // 
         //    // Optimistically assume 50/50 FRAX/3CRV ratio in the metapool to save gas
-        //    frax_per_lp_token = (frax3crv_held.mul(1e18).div(stakingToken.totalSupply())) / 2;
+        //    frax_per_lp_token = (frax3crv_held * 1e18 / stakingToken.totalSupply()) / 2;
         // }
 
         // Uniswap V2
@@ -342,18 +340,18 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
         //     if (frax_is_token0) total_frax_reserves = reserve0;
         //     else total_frax_reserves = reserve1;
 
-        //     frax_per_lp_token = total_frax_reserves.mul(1e18).div(stakingToken.totalSupply());
+        //     frax_per_lp_token = total_frax_reserves * 1e18 / stakingToken.totalSupply();
         // }
 
         return frax_per_lp_token;
     }
 
     function userStakedFrax(address account) public view returns (uint256) {
-        return (fraxPerLPToken()).mul(_locked_liquidity[account]).div(1e18);
+        return (fraxPerLPToken()) * _locked_liquidity[account] / 1e18;
     }
 
     function minVeFXSForMaxBoost(address account) public view returns (uint256) {
-        return (userStakedFrax(account)).mul(vefxs_per_frax_for_max_boost).div(MULTIPLIER_PRECISION);
+        return (userStakedFrax(account)) * vefxs_per_frax_for_max_boost / MULTIPLIER_PRECISION;
     }
 
     function veFXSMultiplier(address account) public view returns (uint256) {
@@ -361,9 +359,9 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
         // of their locked LP tokens
         uint256 veFXS_needed_for_max_boost = minVeFXSForMaxBoost(account);
         if (veFXS_needed_for_max_boost > 0){ 
-            uint256 user_vefxs_fraction = (veFXS.balanceOf(account)).mul(MULTIPLIER_PRECISION).div(veFXS_needed_for_max_boost);
+            uint256 user_vefxs_fraction = (veFXS.balanceOf(account)) * MULTIPLIER_PRECISION / veFXS_needed_for_max_boost;
             
-            uint256 vefxs_multiplier = ((user_vefxs_fraction).mul(vefxs_max_multiplier)).div(MULTIPLIER_PRECISION);
+            uint256 vefxs_multiplier = ((user_vefxs_fraction) * vefxs_max_multiplier) / MULTIPLIER_PRECISION;
 
             // Cap the boost to the vefxs_max_multiplier
             if (vefxs_multiplier > vefxs_max_multiplier) vefxs_multiplier = vefxs_max_multiplier;
@@ -394,7 +392,7 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
             midpoint_vefxs_multiplier = new_vefxs_multiplier;
         }
         else {
-            midpoint_vefxs_multiplier = ((new_vefxs_multiplier).add(_vefxsMultiplierStored[account])).div(2);
+            midpoint_vefxs_multiplier = ((new_vefxs_multiplier) + _vefxsMultiplierStored[account]) / 2;
         }
 
         // Loop through the locked stakes, first by getting the liquidity * lock_multiplier portion
@@ -407,12 +405,12 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
             if (thisStake.ending_timestamp <= block.timestamp) {
                 // If the lock expired in the time since the last claim, the weight needs to be proportionately averaged this time
                 if (lastRewardClaimTime[account] < thisStake.ending_timestamp){
-                    uint256 time_before_expiry = (thisStake.ending_timestamp).sub(lastRewardClaimTime[account]);
-                    uint256 time_after_expiry = (block.timestamp).sub(thisStake.ending_timestamp);
+                    uint256 time_before_expiry = (thisStake.ending_timestamp) - lastRewardClaimTime[account];
+                    uint256 time_after_expiry = (block.timestamp) - thisStake.ending_timestamp;
 
                     // Get the weighted-average lock_multiplier
-                    uint256 numerator = ((lock_multiplier).mul(time_before_expiry)).add(((MULTIPLIER_PRECISION).mul(time_after_expiry)));
-                    lock_multiplier = numerator.div(time_before_expiry.add(time_after_expiry));
+                    uint256 numerator = ((lock_multiplier) * time_before_expiry) + ((MULTIPLIER_PRECISION * time_after_expiry));
+                    lock_multiplier = numerator / time_before_expiry + time_after_expiry;
                 }
                 // Otherwise, it needs to just be 1x
                 else {
@@ -421,8 +419,8 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
             }
 
             uint256 liquidity = thisStake.liquidity;
-            uint256 combined_boosted_amount = liquidity.mul(lock_multiplier.add(midpoint_vefxs_multiplier)).div(MULTIPLIER_PRECISION);
-            new_combined_weight = new_combined_weight.add(combined_boosted_amount);
+            uint256 combined_boosted_amount = liquidity * lock_multiplier + midpoint_vefxs_multiplier / MULTIPLIER_PRECISION;
+            new_combined_weight = new_combined_weight + combined_boosted_amount;
         }
     }
 
@@ -446,8 +444,8 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
         uint256 lock_multiplier =
             uint256(MULTIPLIER_PRECISION).add(
                 secs
-                    .mul(lock_max_multiplier.sub(MULTIPLIER_PRECISION))
-                    .div(lock_time_for_max_multiplier)
+                     * lock_max_multiplier - MULTIPLIER_PRECISION
+                     / lock_time_for_max_multiplier
             );
         if (lock_multiplier > lock_max_multiplier) lock_multiplier = lock_max_multiplier;
         return lock_multiplier;
@@ -461,7 +459,7 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
     function rewardRates(uint256 token_idx) public view returns (uint256 rwd_rate) {
         address gauge_controller_address = gaugeControllers[token_idx];
         if (gauge_controller_address != address(0)) {
-            rwd_rate = (IFraxGaugeController(gauge_controller_address).global_emission_rate()).mul(last_gauge_relative_weights[token_idx]).div(1e18);
+            rwd_rate = (IFraxGaugeController(gauge_controller_address).global_emission_rate()) * last_gauge_relative_weights[token_idx] / 1e18;
         }
         else {
             rwd_rate = rewardRatesManual[token_idx];
@@ -477,7 +475,7 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
             newRewardsPerTokenStored = new uint256[](rewardTokens.length);
             for (uint256 i = 0; i < rewardsPerTokenStored.length; i++){ 
                 newRewardsPerTokenStored[i] = rewardsPerTokenStored[i].add(
-                    lastTimeRewardApplicable().sub(lastUpdateTime).mul(rewardRates(i)).mul(1e18).div(_total_combined_weight)
+                    lastTimeRewardApplicable() - lastUpdateTime * rewardRates(i) * 1e18 / _total_combined_weight
                 );
             }
             return newRewardsPerTokenStored;
@@ -499,9 +497,9 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
         else {
             for (uint256 i = 0; i < rewardTokens.length; i++){ 
                 new_earned[i] = (_combined_weights[account])
-                    .mul(reward_arr[i].sub(userRewardsPerTokenPaid[account][i]))
-                    .div(1e18)
-                    .add(rewards[account][i]);
+                     * reward_arr[i] - userRewardsPerTokenPaid[account][i]
+                     / 1e18
+                     + rewards[account][i];
             }
         }
     }
@@ -511,7 +509,7 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
         rewards_per_duration_arr = new uint256[](rewardRatesManual.length);
 
         for (uint256 i = 0; i < rewardRatesManual.length; i++){ 
-            rewards_per_duration_arr[i] = rewardRates(i).mul(rewardsDuration);
+            rewards_per_duration_arr[i] = rewardRates(i) * rewardsDuration;
         }
     }
 
@@ -559,13 +557,13 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
 
             // Update the user's and the global combined weights
             if (new_combined_weight >= old_combined_weight) {
-                uint256 weight_diff = new_combined_weight.sub(old_combined_weight);
-                _total_combined_weight = _total_combined_weight.add(weight_diff);
-                _combined_weights[account] = old_combined_weight.add(weight_diff);
+                uint256 weight_diff = new_combined_weight - old_combined_weight;
+                _total_combined_weight = _total_combined_weight + weight_diff;
+                _combined_weights[account] = old_combined_weight + weight_diff;
             } else {
-                uint256 weight_diff = old_combined_weight.sub(new_combined_weight);
-                _total_combined_weight = _total_combined_weight.sub(weight_diff);
-                _combined_weights[account] = old_combined_weight.sub(weight_diff);
+                uint256 weight_diff = old_combined_weight - new_combined_weight;
+                _total_combined_weight = _total_combined_weight - weight_diff;
+                _combined_weights[account] = old_combined_weight - weight_diff;
             }
 
         }
@@ -614,7 +612,7 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
             kek_id,
             start_timestamp,
             liquidity,
-            start_timestamp.add(secs),
+            start_timestamp + secs,
             lock_multiplier
         ));
 
@@ -622,8 +620,8 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
         TransferHelper.safeTransferFrom(address(stakingToken), source_address, address(this), liquidity);
 
         // Update liquidities
-        _total_liquidity_locked = _total_liquidity_locked.add(liquidity);
-        _locked_liquidity[staker_address] = _locked_liquidity[staker_address].add(liquidity);
+        _total_liquidity_locked = _total_liquidity_locked + liquidity;
+        _locked_liquidity[staker_address] = _locked_liquidity[staker_address] + liquidity;
 
         // Need to call to update the combined weights
         _updateRewardAndBalance(staker_address, true);
@@ -663,8 +661,8 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
 
         if (liquidity > 0) {
             // Update liquidities
-            _total_liquidity_locked = _total_liquidity_locked.sub(liquidity);
-            _locked_liquidity[staker_address] = _locked_liquidity[staker_address].sub(liquidity);
+            _total_liquidity_locked = _total_liquidity_locked - liquidity;
+            _locked_liquidity[staker_address] = _locked_liquidity[staker_address] - liquidity;
 
             // Remove the stake from the array
             delete lockedStakes[staker_address][theArrayIndex];
@@ -711,18 +709,18 @@ contract StakingRewardsMultiGauge is Owned, ReentrancyGuard {
         // This keeps the reward rate in the right range, preventing overflows due to
         // very high values of rewardRate in the earned and rewardsPerToken functions;
         // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
-        uint256 num_periods_elapsed = uint256(block.timestamp.sub(periodFinish)) / rewardsDuration; // Floor division to the nearest period
+        uint256 num_periods_elapsed = uint256(block.timestamp - periodFinish) / rewardsDuration; // Floor division to the nearest period
         
         // Make sure there are enough tokens to renew the reward period
         for (uint256 i = 0; i < rewardTokens.length; i++){ 
-            require(rewardRates(i).mul(rewardsDuration).mul(num_periods_elapsed + 1) <= ERC20(rewardTokens[i]).balanceOf(address(this)), string(abi.encodePacked("Not enough reward tokens available: ", rewardTokens[i])) );
+            require(rewardRates(i) * rewardsDuration * num_periods_elapsed + 1 <= ERC20(rewardTokens[i]).balanceOf(address(this)), string(abi.encodePacked("Not enough reward tokens available: ", rewardTokens[i])) );
         }
         
         // uint256 old_lastUpdateTime = lastUpdateTime;
         // uint256 new_lastUpdateTime = block.timestamp;
 
         // lastUpdateTime = periodFinish;
-        periodFinish = periodFinish.add((num_periods_elapsed.add(1)).mul(rewardsDuration));
+        periodFinish = periodFinish + (num_periods_elapsed.add(1) * rewardsDuration);
 
         _updateStoredRewardsAndTime();
 
