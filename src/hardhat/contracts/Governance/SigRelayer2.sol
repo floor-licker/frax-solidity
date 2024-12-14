@@ -2,7 +2,7 @@
  *Submitted for verification at Etherscan.io on 2021-04-02
 */
 
-pragma solidity ^0.6.11;
+pragma solidity ^0.8.0;
 pragma experimental ABIEncoderV2;
 
 interface GasToken {
