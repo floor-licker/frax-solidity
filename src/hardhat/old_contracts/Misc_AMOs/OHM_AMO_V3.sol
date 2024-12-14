@@ -20,7 +20,6 @@ pragma solidity >=0.8.0;
 // Jason Huan: https://github.com/jasonhuan
 // Sam Kazemian: https://github.com/samkazemian
 
-import "../Math/SafeMath.sol";
 import "../ERC20/ERC20.sol";
 import "../ERC20/Variants/Comp.sol";
 import "../Frax/IFrax.sol";
@@ -44,7 +43,6 @@ import "../Staking/Owned.sol";
 // 4) Sell OHM for FRAX
 
 contract OHM_AMO_V3 is Owned {
-    using SafeMath for uint256;
     // SafeMath automatically included in Solidity >= 8.0.0
 
     /* ========== STATE VARIABLES ========== */
@@ -129,14 +127,14 @@ contract OHM_AMO_V3 is Owned {
         (uint256 spot_price_ohm_raw, ) = spotPriceOHM();
 
         allocations[0] = FRAX.balanceOf(address(this)); // Unallocated FRAX
-        allocations[1] = OHM.balanceOf(address(this)).mul(spot_price_ohm_raw); // OHM
-        allocations[2] = sOHM.balanceOf(address(this)).mul(spot_price_ohm_raw); // sOHM
-        allocations[3] = (bondDepository.pendingPayoutFor(address(this))).mul(spot_price_ohm_raw); // Claimable OHM from bonding
+        allocations[1] = OHM.balanceOf(address(this)) * spot_price_ohm_raw; // OHM
+        allocations[2] = sOHM.balanceOf(address(this)) * spot_price_ohm_raw; // sOHM
+        allocations[3] = (bondDepository.pendingPayoutFor(address(this))) * spot_price_ohm_raw; // Claimable OHM from bonding
     
         uint256 sum_tally = 0;
         for (uint i = 0; i < 4; i++){ 
             if (allocations[i] > 0){
-                sum_tally = sum_tally.add(allocations[i]);
+                sum_tally = sum_tally + allocations[i];
             }
         }
 
@@ -151,13 +149,13 @@ contract OHM_AMO_V3 is Owned {
         (uint256 reserve0, uint256 reserve1, ) = (UNI_OHM_FRAX_PAIR.getReserves());
 
         // OHM = token0, FRAX = token1
-        frax_per_ohm_raw = reserve1.div(reserve0);
-        frax_per_ohm = reserve1.mul(PRICE_PRECISION).div(reserve0.mul(10 ** missing_decimals_ohm));
+        frax_per_ohm_raw = reserve1 / reserve0;
+        frax_per_ohm = reserve1 * PRICE_PRECISION / reserve0 * 10 ** missing_decimals_ohm;
     }
 
     function dollarBalances() public view returns (uint256 frax_val_e18, uint256 collat_val_e18) {
         frax_val_e18 = showAllocations()[4];
-        collat_val_e18 = (frax_val_e18).mul(FRAX.global_collateral_ratio()).div(PRICE_PRECISION);
+        collat_val_e18 = (frax_val_e18) * FRAX.global_collateral_ratio() / PRICE_PRECISION;
     }
 
     // Backwards compatibility
