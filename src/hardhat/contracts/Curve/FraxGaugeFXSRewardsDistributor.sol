@@ -24,7 +24,6 @@ pragma solidity >=0.6.11;
 // Sam Kazemian: https://github.com/samkazemian
 
 import "../Math/Math.sol";
-import "../Math/SafeMath.sol";
 import "../ERC20/ERC20.sol";
 import "../ERC20/SafeERC20.sol";
 import "./IFraxGaugeController.sol";
@@ -34,7 +33,6 @@ import "../Staking/Owned.sol";
 import "../Utils/ReentrancyGuard.sol";
 
 contract FraxGaugeFXSRewardsDistributor is Owned, ReentrancyGuard {
-    using SafeMath for uint256;
     using SafeERC20 for ERC20;
 
     /* ========== STATE VARIABLES ========== */
@@ -100,8 +98,8 @@ contract FraxGaugeFXSRewardsDistributor is Owned, ReentrancyGuard {
     // Current weekly reward amount
     function currentReward(address gauge_address) public view returns (uint256 reward_amount) {
         uint256 rel_weight = gauge_controller.gauge_relative_weight(gauge_address, block.timestamp);
-        uint256 rwd_rate = (gauge_controller.global_emission_rate()).mul(rel_weight).div(1e18);
-        reward_amount = rwd_rate.mul(ONE_WEEK);
+        uint256 rwd_rate = (gauge_controller.global_emission_rate()) * rel_weight / 1e18;
+        reward_amount = rwd_rate * ONE_WEEK;
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */
@@ -119,7 +117,7 @@ contract FraxGaugeFXSRewardsDistributor is Owned, ReentrancyGuard {
         }
         else {
             // Truncation desired
-            weeks_elapsed = (block.timestamp).sub(last_time_gauge_paid[gauge_address]) / ONE_WEEK;
+            weeks_elapsed = (block.timestamp) - last_time_gauge_paid[gauge_address] / ONE_WEEK;
 
             // Return early here for 0 weeks instead of throwing, as it could have bad effects in other contracts
             if (weeks_elapsed == 0) {
@@ -137,10 +135,10 @@ contract FraxGaugeFXSRewardsDistributor is Owned, ReentrancyGuard {
             }
             else {
                 // View
-                rel_weight_at_week = gauge_controller.gauge_relative_weight(gauge_address, (block.timestamp).sub(ONE_WEEK * i));
+                rel_weight_at_week = gauge_controller.gauge_relative_weight(gauge_address, (block.timestamp) - ONE_WEEK * i);
             }
-            uint256 rwd_rate_at_week = (gauge_controller.global_emission_rate()).mul(rel_weight_at_week).div(1e18);
-            reward_tally = reward_tally.add(rwd_rate_at_week.mul(ONE_WEEK));
+            uint256 rwd_rate_at_week = (gauge_controller.global_emission_rate()) * rel_weight_at_week / 1e18;
+            reward_tally = reward_tally + rwd_rate_at_week * ONE_WEEK;
         }
 
         // Update the last time paid
