@@ -33,7 +33,6 @@ import "../../Staking/Owned.sol";
 import "../../Utils/ReentrancyGuard.sol";
 
 contract CrossChainCanonical is ERC20Permit, Owned, ReentrancyGuard {
-    using SafeMath for uint256;
 
     /* ========== STATE VARIABLES ========== */
 
