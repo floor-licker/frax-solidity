@@ -35,7 +35,6 @@ import "../Oracle/ComboOracle.sol";
 import "../Misc_AMOs/solidly/IBaseV1Pair.sol";
 
 contract SolidlySingleLPOracle is Owned {
-    using SafeMath for uint256;
     using HomoraMath for uint256;
 
     // Core
