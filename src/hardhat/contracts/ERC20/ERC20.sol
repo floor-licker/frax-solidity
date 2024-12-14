@@ -3,7 +3,6 @@ pragma solidity >=0.6.11;
 
 import "../Common/Context.sol";
 import "./IERC20.sol";
-import "../Math/SafeMath.sol";
 import "../Utils/Address.sol";
 
 
@@ -33,7 +32,6 @@ import "../Utils/Address.sol";
  */
  
 contract ERC20 is Context, IERC20 {
-    using SafeMath for uint256;
 
     mapping (address => uint256) private _balances;
 
@@ -152,7 +150,7 @@ contract ERC20 is Context, IERC20 {
      */
     function transferFrom(address sender, address recipient, uint256 amount) public virtual override returns (bool) {
         _transfer(sender, recipient, amount);
-        _approve(sender, _msgSender(), _allowances[sender][_msgSender()].sub(amount, "ERC20: transfer amount exceeds allowance"));
+        _approve(sender, _msgSender(), _allowances[sender][_msgSender()] - amount, "ERC20: transfer amount exceeds allowance");
         return true;
     }
 
@@ -169,7 +167,7 @@ contract ERC20 is Context, IERC20 {
      * - `spender` cannot be the zero address.
      */
     function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
-        _approve(_msgSender(), spender, _allowances[_msgSender()][spender].add(addedValue));
+        _approve(_msgSender(), spender, _allowances[_msgSender()][spender] + addedValue);
         return true;
     }
 
@@ -188,7 +186,7 @@ contract ERC20 is Context, IERC20 {
      * `subtractedValue`.
      */
     function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
-        _approve(_msgSender(), spender, _allowances[_msgSender()][spender].sub(subtractedValue, "ERC20: decreased allowance below zero"));
+        _approve(_msgSender(), spender, _allowances[_msgSender()][spender] - subtractedValue, "ERC20: decreased allowance below zero");
         return true;
     }
 
@@ -212,8 +210,8 @@ contract ERC20 is Context, IERC20 {
 
         _beforeTokenTransfer(sender, recipient, amount);
 
-        _balances[sender] = _balances[sender].sub(amount, "ERC20: transfer amount exceeds balance");
-        _balances[recipient] = _balances[recipient].add(amount);
+        _balances[sender] = _balances[sender] - amount, "ERC20: transfer amount exceeds balance";
+        _balances[recipient] = _balances[recipient] + amount;
         emit Transfer(sender, recipient, amount);
     }
 
@@ -231,8 +229,8 @@ contract ERC20 is Context, IERC20 {
 
         _beforeTokenTransfer(address(0), account, amount);
 
-        _totalSupply = _totalSupply.add(amount);
-        _balances[account] = _balances[account].add(amount);
+        _totalSupply = _totalSupply + amount;
+        _balances[account] = _balances[account] + amount;
         emit Transfer(address(0), account, amount);
     }
 
@@ -257,7 +255,7 @@ contract ERC20 is Context, IERC20 {
      * `amount`.
      */
     function burnFrom(address account, uint256 amount) public virtual {
-        uint256 decreasedAllowance = allowance(account, _msgSender()).sub(amount, "ERC20: burn amount exceeds allowance");
+        uint256 decreasedAllowance = allowance(account, _msgSender()) - amount, "ERC20: burn amount exceeds allowance";
 
         _approve(account, _msgSender(), decreasedAllowance);
         _burn(account, amount);
@@ -280,8 +278,8 @@ contract ERC20 is Context, IERC20 {
 
         _beforeTokenTransfer(account, address(0), amount);
 
-        _balances[account] = _balances[account].sub(amount, "ERC20: burn amount exceeds balance");
-        _totalSupply = _totalSupply.sub(amount);
+        _balances[account] = _balances[account] - amount, "ERC20: burn amount exceeds balance";
+        _totalSupply = _totalSupply - amount;
         emit Transfer(account, address(0), amount);
     }
 
@@ -314,7 +312,7 @@ contract ERC20 is Context, IERC20 {
      */
     function _burnFrom(address account, uint256 amount) internal virtual {
         _burn(account, amount);
-        _approve(account, _msgSender(), _allowances[account][_msgSender()].sub(amount, "ERC20: burn amount exceeds allowance"));
+        _approve(account, _msgSender(), _allowances[account][_msgSender()] - amount, "ERC20: burn amount exceeds allowance");
     }
 
     /**
