@@ -694,7 +694,6 @@ interface IcvxRewardPool {
 //  * which allows you to call the safe operations as `token.safeTransfer(...)`, etc.
 //  */
 // library SafeERC20 {
-//     using SafeMath for uint256;
 //     using Address for address;
 
 //     function safeTransfer(IERC20 token, address to, uint256 value) internal {
@@ -724,12 +723,12 @@ interface IcvxRewardPool {
 //     }
 
 //     function safeIncreaseAllowance(IERC20 token, address spender, uint256 value) internal {
-//         uint256 newAllowance = token.allowance(address(this), spender).add(value);
+//         uint256 newAllowance = token.allowance(address(this), spender) + value;
 //         _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, newAllowance));
 //     }
 
 //     function safeDecreaseAllowance(IERC20 token, address spender, uint256 value) internal {
-//         uint256 newAllowance = token.allowance(address(this), spender).sub(value, "SafeERC20: decreased allowance below zero");
+//         uint256 newAllowance = token.allowance(address(this), spender) - value, "SafeERC20: decreased allowance below zero";
 //         _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, newAllowance));
 //     }
 
@@ -798,7 +797,6 @@ interface IcvxRewardPool {
 
 // contract cvxRewardPool{
 //     using SafeERC20 for IERC20;
-//     using SafeMath for uint256;
 
 //     IERC20 public immutable rewardToken;
 //     IERC20 public immutable stakingToken;
@@ -894,30 +892,30 @@ interface IcvxRewardPool {
 //         return
 //             rewardPerTokenStored.add(
 //                 lastTimeRewardApplicable()
-//                     .sub(lastUpdateTime)
-//                     .mul(rewardRate)
-//                     .mul(1e18)
-//                     .div(supply)
+//                      - lastUpdateTime
+//                      * rewardRate
+//                      * 1e18
+//                      / supply
 //             );
 //     }
 
 //     function earnedReward(address account) internal view returns (uint256) {
 //         return
 //             balanceOf(account)
-//                 .mul(rewardPerToken().sub(userRewardPerTokenPaid[account]))
-//                 .div(1e18)
-//                 .add(rewards[account]);
+//                  * rewardPerToken( - userRewardPerTokenPaid[account])
+//                  / 1e18
+//                  + rewards[account];
 //     }
 
 //     function earned(address account) external view returns (uint256) {
 //         uint256 depositFeeRate = ICrvDeposit(crvDeposits).lockIncentive();
 
 //         uint256 r = earnedReward(account);
-//         uint256 fees = r.mul(depositFeeRate).div(FEE_DENOMINATOR);
+//         uint256 fees = r * depositFeeRate / FEE_DENOMINATOR;
         
 //         //fees dont apply until whitelist+vecrv lock begins so will report
 //         //slightly less value than what is actually received.
-//         return r.sub(fees);
+//         return r - fees;
 //     }
 
 //     function stake(uint256 _amount)
@@ -933,9 +931,9 @@ interface IcvxRewardPool {
 //         }
 
 //         //add supply
-//         _totalSupply = _totalSupply.add(_amount);
+//         _totalSupply = _totalSupply + _amount;
 //         //add to sender balance sheet
-//         _balances[msg.sender] = _balances[msg.sender].add(_amount);
+//         _balances[msg.sender] = _balances[msg.sender] + _amount;
 //         //take tokens from sender
 //         stakingToken.safeTransferFrom(msg.sender, address(this), _amount);
 
@@ -960,9 +958,9 @@ interface IcvxRewardPool {
 //         }
 
 //          //add supply
-//         _totalSupply = _totalSupply.add(_amount);
+//         _totalSupply = _totalSupply + _amount;
 //         //add to _for's balance sheet
-//         _balances[_for] = _balances[_for].add(_amount);
+//         _balances[_for] = _balances[_for] + _amount;
 //         //take tokens from sender
 //         stakingToken.safeTransferFrom(msg.sender, address(this), _amount);
 
@@ -981,8 +979,8 @@ interface IcvxRewardPool {
 //             IRewards(extraRewards[i]).withdraw(msg.sender, _amount);
 //         }
 
-//         _totalSupply = _totalSupply.sub(_amount);
-//         _balances[msg.sender] = _balances[msg.sender].sub(_amount);
+//         _totalSupply = _totalSupply - _amount;
+//         _balances[msg.sender] = _balances[msg.sender] - _amount;
 //         stakingToken.safeTransfer(msg.sender, _amount);
 //         emit Withdrawn(msg.sender, _amount);
 
@@ -1029,13 +1027,13 @@ interface IcvxRewardPool {
 
 //     function donate(uint256 _amount) external returns(bool){
 //         IERC20(rewardToken).safeTransferFrom(msg.sender, address(this), _amount);
-//         queuedRewards = queuedRewards.add(_amount);
+//         queuedRewards = queuedRewards + _amount;
 //     }
 
 //     function queueNewRewards(uint256 _rewards) external{
 //         require(msg.sender == operator, "!authorized");
 
-//         _rewards = _rewards.add(queuedRewards);
+//         _rewards = _rewards + queuedRewards;
 
 //         if (block.timestamp >= periodFinish) {
 //             notifyRewardAmount(_rewards);
@@ -1044,10 +1042,10 @@ interface IcvxRewardPool {
 //         }
 
 //         //et = now - (finish-duration)
-//         uint256 elapsedTime = block.timestamp.sub(periodFinish.sub(duration));
+//         uint256 elapsedTime = block.timestamp - periodFinish.sub(duration);
 //         //current at now: rewardRate * elapsedTime
 //         uint256 currentAtNow = rewardRate * elapsedTime;
-//         uint256 queuedRatio = currentAtNow.mul(1000).div(_rewards);
+//         uint256 queuedRatio = currentAtNow * 1000 / _rewards;
 //         if(queuedRatio < newRewardRatio){
 //             notifyRewardAmount(_rewards);
 //             queuedRewards = 0;
@@ -1060,18 +1058,18 @@ interface IcvxRewardPool {
 //         internal
 //         updateReward(address(0))
 //     {
-//         historicalRewards = historicalRewards.add(reward);
+//         historicalRewards = historicalRewards + reward;
 //         if (block.timestamp >= periodFinish) {
-//             rewardRate = reward.div(duration);
+//             rewardRate = reward / duration;
 //         } else {
-//             uint256 remaining = periodFinish.sub(block.timestamp);
-//             uint256 leftover = remaining.mul(rewardRate);
-//             reward = reward.add(leftover);
-//             rewardRate = reward.div(duration);
+//             uint256 remaining = periodFinish - block.timestamp;
+//             uint256 leftover = remaining * rewardRate;
+//             reward = reward + leftover;
+//             rewardRate = reward / duration;
 //         }
 //         currentRewards = reward;
 //         lastUpdateTime = block.timestamp;
-//         periodFinish = block.timestamp.add(duration);
+//         periodFinish = block.timestamp + duration;
 //         emit RewardAdded(reward);
 //     }
 // }
