@@ -20,7 +20,6 @@ pragma solidity >=0.8.0;
 // Jason Huan: https://github.com/jasonhuan
 // Sam Kazemian: https://github.com/samkazemian
 
-import "../Math/SafeMath.sol";
 import "../FXS/IFxs.sol";
 import "../ERC20/ERC20.sol";
 import "../Frax/IFrax.sol";
@@ -34,7 +33,6 @@ import "../Staking/Owned.sol";
 import "../Staking/veFXSYieldDistributorV4.sol";
 
 contract FXS1559_AMO_V3 is Owned {
-    using SafeMath for uint256;
     // SafeMath automatically included in Solidity >= 8.0.0
 
     /* ========== STATE VARIABLES ========== */
@@ -76,7 +74,7 @@ contract FXS1559_AMO_V3 is Owned {
         FRAX = IFrax(frax_address);
         FXS = IFxs(fxs_address);
         collateral_token = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-        missing_decimals = uint(18).sub(collateral_token.decimals());
+        missing_decimals = uint(18) - collateral_token.decimals();
         yieldDistributor = veFXSYieldDistributorV4(_yield_distributor_address);
         
         // Initializations
@@ -112,7 +110,7 @@ contract FXS1559_AMO_V3 is Owned {
 
     function dollarBalances() public view returns (uint256 frax_val_e18, uint256 collat_val_e18) {
         frax_val_e18 = FRAX.balanceOf(address(this));
-        collat_val_e18 = frax_val_e18.mul(COLLATERAL_RATIO_PRECISION).div(FRAX.global_collateral_ratio());
+        collat_val_e18 = frax_val_e18 * COLLATERAL_RATIO_PRECISION / FRAX.global_collateral_ratio();
     }
 
     /* ========== RESTRICTED FUNCTIONS ========== */
@@ -128,8 +126,8 @@ contract FXS1559_AMO_V3 is Owned {
         FRAX_FXS_PATH[0] = frax_address;
         FRAX_FXS_PATH[1] = fxs_address;
 
-        uint256 min_fxs_out = frax_amount.mul(PRICE_PRECISION).div(fxs_price);
-        min_fxs_out = min_fxs_out.sub(min_fxs_out.mul(max_slippage).div(PRICE_PRECISION));
+        uint256 min_fxs_out = frax_amount * PRICE_PRECISION / fxs_price;
+        min_fxs_out = min_fxs_out - min_fxs_out * max_slippage / PRICE_PRECISION;
 
         // Buy some FXS with FRAX
         (uint[] memory amounts) = UniRouterV2.swapExactTokensForTokens(
@@ -147,7 +145,7 @@ contract FXS1559_AMO_V3 is Owned {
     function swapBurn(uint256 override_frax_amount, bool use_override) public onlyByOwnGov {
         uint256 mintable_frax;
         if (use_override){
-            // mintable_frax = override_USDC_amount.mul(10 ** missing_decimals).mul(COLLATERAL_RATIO_PRECISION).div(FRAX.global_collateral_ratio());
+            // mintable_frax = override_USDC_amount * 10 ** missing_decimals * COLLATERAL_RATIO_PRECISION / FRAX.global_collateral_ratio();
             mintable_frax = override_frax_amount;
         }
         else {
@@ -157,8 +155,8 @@ contract FXS1559_AMO_V3 is Owned {
         (, uint256 fxs_received ) = _swapFRAXforFXS(mintable_frax);
 
         // Calculate the amount to burn vs give to the yield distributor
-        uint256 amt_to_burn = fxs_received.mul(burn_fraction).div(PRICE_PRECISION);
-        uint256 amt_to_yield_distributor = fxs_received.sub(amt_to_burn);
+        uint256 amt_to_burn = fxs_received * burn_fraction / PRICE_PRECISION;
+        uint256 amt_to_yield_distributor = fxs_received - amt_to_burn;
 
         // Burn some of the FXS
         burnFXS(amt_to_burn);
