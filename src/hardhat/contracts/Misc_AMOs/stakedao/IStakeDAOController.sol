@@ -401,7 +401,6 @@ interface IStakeDAOController {
 //  * which allows you to call the safe operations as `token.safeTransfer(...)`, etc.
 //  */
 // library SafeERC20 {
-//     using SafeMath for uint256;
 //     using Address for address;
 
 //     function safeTransfer(IERC20 token, address to, uint256 value) internal {
@@ -424,12 +423,12 @@ interface IStakeDAOController {
 //     }
 
 //     function safeIncreaseAllowance(IERC20 token, address spender, uint256 value) internal {
-//         uint256 newAllowance = token.allowance(address(this), spender).add(value);
+//         uint256 newAllowance = token.allowance(address(this), spender) + value;
 //         callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, newAllowance));
 //     }
 
 //     function safeDecreaseAllowance(IERC20 token, address spender, uint256 value) internal {
-//         uint256 newAllowance = token.allowance(address(this), spender).sub(value, "SafeERC20: decreased allowance below zero");
+//         uint256 newAllowance = token.allowance(address(this), spender) - value, "SafeERC20: decreased allowance below zero";
 //         callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, newAllowance));
 //     }
 
@@ -466,7 +465,6 @@ interface IStakeDAOController {
 // contract Controller {
 //     using SafeERC20 for IERC20;
 //     using Address for address;
-//     using SafeMath for uint256;
 
 //     address public governance;
 //     address public strategist;
@@ -605,7 +603,7 @@ interface IStakeDAOController {
 //         IStrategy(_strategy).withdraw(_token);
 //         uint256 _after = IERC20(_token).balanceOf(address(this));
 //         if (_after > _before) {
-//             uint256 _amount = _after.sub(_before);
+//             uint256 _amount = _after - _before;
 //             address _want = IStrategy(_strategy).want();
 //             uint256[] memory _distribution;
 //             uint256 _expected;
@@ -616,9 +614,9 @@ interface IStakeDAOController {
 //             IOneSplitAudit(onesplit).swap(_token, _want, _amount, _expected, _distribution, 0);
 //             _after = IERC20(_want).balanceOf(address(this));
 //             if (_after > _before) {
-//                 _amount = _after.sub(_before);
-//                 uint256 _reward = _amount.mul(split).div(max);
-//                 earn(_want, _amount.sub(_reward));
+//                 _amount = _after - _before;
+//                 uint256 _reward = _amount * split / max;
+//                 earn(_want, _amount - _reward);
 //                 IERC20(_want).safeTransfer(rewards, _reward);
 //             }
 //         }
