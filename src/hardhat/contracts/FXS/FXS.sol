@@ -26,11 +26,9 @@ import "../ERC20/ERC20Custom.sol";
 import "../ERC20/IERC20.sol";
 import "../Frax/Frax.sol";
 import "../Staking/Owned.sol";
-import "../Math/SafeMath.sol";
 import "../Governance/AccessControl.sol";
 
 contract FRAXShares is ERC20Custom, AccessControl, Owned {
-    using SafeMath for uint256;
 
     /* ========== STATE VARIABLES ========== */
 
@@ -168,7 +166,7 @@ contract FRAXShares is ERC20Custom, AccessControl, Owned {
         }
 
         _transfer(sender, recipient, amount);
-        _approve(sender, _msgSender(), _allowances[sender][_msgSender()].sub(amount, "ERC20: transfer amount exceeds allowance"));
+        _approve(sender, _msgSender(), _allowances[sender][_msgSender()] - amount, "ERC20: transfer amount exceeds allowance");
 
         return true;
     }
