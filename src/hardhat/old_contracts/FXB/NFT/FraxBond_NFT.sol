@@ -22,12 +22,10 @@ pragma solidity ^0.8.0;
 
 import "../../ERC721/ERC721.sol";
 import "../../ERC721/V8_0_0/Governance/AccessControl.sol";
-import "../../ERC721/V8_0_0/Math/SafeMath.sol";
 import "../../Frax/V8_0_0/IFrax.sol";
 import "./FraxBond_NFT_Library.sol";
 
 contract FraxBond_NFT is ERC721, AccessControl {
-    using SafeMath for uint256;
 
     /* ========== STATE VARIABLES ========== */
 
@@ -124,11 +122,11 @@ contract FraxBond_NFT is ERC721, AccessControl {
         series = _series;
         face_value = _face_value;
         maturity_months = _maturity_months;
-        maturity_secs = _maturity_months.mul(2592000); // 2592000 secs for 30 day month
+        maturity_secs = _maturity_months * 2592000; // 2592000 secs for 30 day month
         discount = _discount; // E18
         min_early_redeem_secs = _min_early_redeem_secs;
         max_early_redemption_penalty_pct = _max_early_redemption_penalty_pct;
-        purchase_price = _face_value.sub(_discount); // E18
+        purchase_price = _face_value - _discount; // E18
 
         super._setBaseURI(FraxBond_NFT_Library.concatenate3("https://api.frax.finance/nft/frax-bonds/", FraxBond_NFT_Library.fxb_symboler(_series, _face_value, _maturity_months), "/"));
     }
@@ -161,13 +159,13 @@ contract FraxBond_NFT is ERC721, AccessControl {
         else {
             uint256 numerator = time_elapsed - min_early_redeem_secs;
             uint256 denominator = maturity_secs - min_early_redeem_secs;
-            penalty_multiplier = uint256(1e6).sub(numerator.mul(1e6).div(denominator));
+            penalty_multiplier = uint256(1e6) - numerator * 1e6 / denominator;
         }
     }
 
     function calcAPY() public view returns (uint256 apy) {
         // Returns in E6
-        apy = discount.mul(1e6).mul(12).div(maturity_months).div(face_value);
+        apy = discount * 1e6 * 12 / maturity_months / face_value;
     }
 
     /* ============ PUBLIC FUNCTIONS ============ */
@@ -188,7 +186,7 @@ contract FraxBond_NFT is ERC721, AccessControl {
         // Create the struct
         bondData[serial_number] = BondData({
             issue_timestamp: block.timestamp,
-            maturity_timestamp: (block.timestamp).add(maturity_secs),
+            maturity_timestamp: (block.timestamp) + maturity_secs,
             redeemed_timestamp: 0
         });
 
@@ -215,7 +213,7 @@ contract FraxBond_NFT is ERC721, AccessControl {
         require(thisBond.redeemed_timestamp == 0, "Bond has already been redeemed");
 
         // Make sure you are not redeeming too early
-        uint256 time_elapsed = (block.timestamp).sub(thisBond.issue_timestamp);
+        uint256 time_elapsed = (block.timestamp) - thisBond.issue_timestamp;
         require(time_elapsed >= min_early_redeem_secs, "You are trying to redeem too early");
 
         // Set the redeem timestamp
@@ -224,16 +222,16 @@ contract FraxBond_NFT is ERC721, AccessControl {
         // Unpenalized value
         // Account for the difference from the early redemption
         if (time_elapsed > maturity_secs) time_elapsed = maturity_secs; // Needed for math below
-        maturity_value = face_value.sub(purchase_price).mul(time_elapsed).div(maturity_secs);
+        maturity_value = face_value - purchase_price * time_elapsed / maturity_secs;
 
         // Calculate the early withdrawal penalty, if applicable
         uint256 penalty_multiplier = calcPenaltyMultiplier(time_elapsed);
 
         // Apply the penalty, if present
-        maturity_value = maturity_value.sub(maturity_value.mul(penalty_multiplier).mul(max_early_redemption_penalty_pct).div(1e12));
+        maturity_value = maturity_value - maturity_value * penalty_multiplier.mul(max_early_redemption_penalty_pct / 1e12);
 
         // Calculate the return value
-        return_value = purchase_price.add(maturity_value);
+        return_value = purchase_price + maturity_value;
 
         // Mint the FRAX
         FRAX.pool_mint(msg.sender, return_value);
