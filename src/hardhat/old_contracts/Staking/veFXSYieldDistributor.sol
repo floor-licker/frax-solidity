@@ -26,7 +26,6 @@ pragma solidity >=0.6.11;
 // https://raw.githubusercontent.com/Synthetixio/synthetix/develop/contracts/StakingYield.sol
 
 import "../Math/Math.sol";
-import "../Math/SafeMath.sol";
 import "../Curve/IveFXS.sol";
 import "../ERC20/ERC20.sol";
 import "../ERC20/SafeERC20.sol";
@@ -34,7 +33,6 @@ import "../Utils/ReentrancyGuard.sol";
 import "./Owned.sol";
 
 contract veFXSYieldDistributor is Owned, ReentrancyGuard {
-    using SafeMath for uint256;
     using SafeERC20 for ERC20;
 
     /* ========== STATE VARIABLES ========== */
@@ -110,13 +108,13 @@ contract veFXSYieldDistributor is Owned, ReentrancyGuard {
         timelock_address = _timelock_address;
 
         // 1 FXS a day at initialization
-        yieldRate = (uint256(365e18)).div(365 * 86400);
+        yieldRate = (uint256(365e18)) / 365 * 86400;
     }
 
     /* ========== VIEWS ========== */
 
     function fractionParticipating() external view returns (uint256) {
-        return totalVeFXSParticipating.mul(PRICE_PRECISION).div(totalVeFXSSupplyStored);
+        return totalVeFXSParticipating * PRICE_PRECISION / totalVeFXSSupplyStored;
     }
 
     function lastTimeYieldApplicable() public view returns (uint256) {
@@ -130,10 +128,10 @@ contract veFXSYieldDistributor is Owned, ReentrancyGuard {
             return (
                 yieldPerVeFXSStored.add(
                     lastTimeYieldApplicable()
-                        .sub(lastUpdateTime)
-                        .mul(yieldRate)
-                        .mul(1e18)
-                        .div(totalVeFXSSupplyStored)
+                         - lastUpdateTime
+                         * yieldRate
+                         * 1e18
+                         / totalVeFXSSupplyStored
                 )
             );
         }
@@ -143,14 +141,14 @@ contract veFXSYieldDistributor is Owned, ReentrancyGuard {
         uint256 yield0 = yieldPerVeFXS();
         return (
             userVeFXSCheckpointed[account]
-                .mul(yield0.sub(userYieldPerTokenPaid[account]))
-                .div(1e18)
-                .add(yields[account])
+                 * yield0 - userYieldPerTokenPaid[account]
+                 / 1e18
+                 + yields[account]
         );
     }
 
     function getYieldForDuration() external view returns (uint256) {
-        return (yieldRate.mul(yieldDuration));
+        return (yieldRate * yieldDuration);
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */
@@ -168,11 +166,11 @@ contract veFXSYieldDistributor is Owned, ReentrancyGuard {
 
         // Update the total amount participating
         if (new_vefxs_balance >= old_vefxs_balance) {
-            uint256 weight_diff = new_vefxs_balance.sub(old_vefxs_balance);
-            totalVeFXSParticipating = totalVeFXSParticipating.add(weight_diff);
+            uint256 weight_diff = new_vefxs_balance - old_vefxs_balance;
+            totalVeFXSParticipating = totalVeFXSParticipating + weight_diff;
         } else {
-            uint256 weight_diff = old_vefxs_balance.sub(new_vefxs_balance);
-            totalVeFXSParticipating = totalVeFXSParticipating.sub(weight_diff);
+            uint256 weight_diff = old_vefxs_balance - new_vefxs_balance;
+            totalVeFXSParticipating = totalVeFXSParticipating - weight_diff;
         }
 
         if (account != address(0)) {
@@ -217,11 +215,11 @@ contract veFXSYieldDistributor is Owned, ReentrancyGuard {
         // This keeps the yield rate in the right range, preventing overflows due to
         // very high values of yieldRate in the earned and yieldPerToken functions;
         // Yield + leftover must be less than 2^256 / 10^18 to avoid overflow.
-        uint256 num_periods_elapsed = uint256(block.timestamp.sub(periodFinish)) / yieldDuration; // Floor division to the nearest period
+        uint256 num_periods_elapsed = uint256(block.timestamp - periodFinish) / yieldDuration; // Floor division to the nearest period
         uint256 balance0 = emittedToken.balanceOf(address(this));
-        require(yieldRate.mul(yieldDuration).mul(num_periods_elapsed + 1) <= balance0, "Not enough emittedToken available for yield distribution!");
+        require(yieldRate * yieldDuration * num_periods_elapsed + 1 <= balance0, "Not enough emittedToken available for yield distribution!");
 
-        periodFinish = periodFinish.add((num_periods_elapsed.add(1)).mul(yieldDuration));
+        periodFinish = periodFinish + (num_periods_elapsed.add(1) * yieldDuration);
 
         uint256 yield0 = yieldPerVeFXS();
         yieldPerVeFXSStored = yield0;
@@ -260,7 +258,7 @@ contract veFXSYieldDistributor is Owned, ReentrancyGuard {
 
     function initializeDefault() external onlyByOwnGov {
         lastUpdateTime = block.timestamp;
-        periodFinish = block.timestamp.add(yieldDuration);
+        periodFinish = block.timestamp + yieldDuration;
         totalVeFXSSupplyStored = veFXS.totalSupply();
         emit DefaultInitialization();
     }
