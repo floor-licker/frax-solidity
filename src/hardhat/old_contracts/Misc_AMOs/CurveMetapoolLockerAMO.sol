@@ -29,12 +29,10 @@ import '../Uniswap/TransferHelper.sol';
 import "../ERC20/ERC20.sol";
 import "../Frax/IFrax.sol";
 import "../Frax/IFraxAMOMinter.sol";
-import "../Math/SafeMath.sol";
 import "../Proxy/Initializable.sol";
 import "../Staking/Owned.sol";
 
 contract CurveMetapoolLockerAMO is Owned {
-    using SafeMath for uint256;
 
     /* ========== STATE VARIABLES ========== */
 
@@ -77,7 +75,7 @@ contract CurveMetapoolLockerAMO is Owned {
         FRAX = IFrax(0x853d955aCEf822Db058eb8505911ED77F175b99e);
         collateral_token = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
         reward_token_address = 0xc7283b66Eb1EB5FB86327f08e1B5816b0720212B;
-        missing_decimals = uint(18).sub(collateral_token.decimals());
+        missing_decimals = uint(18) - collateral_token.decimals();
         amo_minter = IFraxAMOMinter(_amo_minter_address);
 
         metapool_token_address = 0x06cb22615BA53E60D67Bf6C341a0fD5E718E1655;
@@ -185,7 +183,7 @@ contract CurveMetapoolLockerAMO is Owned {
         // Convert collateral into 3pool
         uint256[3] memory three_pool_collaterals;
         three_pool_collaterals[1] = _collateral_amount;
-        uint256 min_3pool_out = (_collateral_amount * (10 ** missing_decimals)).mul(liq_slippage_3crv).div(PRICE_PRECISION);
+        uint256 min_3pool_out = (_collateral_amount * (10 ** missing_decimals)) * liq_slippage_3crv / PRICE_PRECISION;
         three_pool.add_liquidity(three_pool_collaterals, min_3pool_out);
 
         // Approve the 3pool for the metapool
@@ -206,7 +204,7 @@ contract CurveMetapoolLockerAMO is Owned {
 
     function metapoolWithdraw3pool(uint256 metapool_lp_in) public onlyByOwnGov {
         // Withdraw 3pool from the metapool
-        uint256 min_3pool_out = metapool_lp_in.mul(slippage_metapool).div(PRICE_PRECISION);
+        uint256 min_3pool_out = metapool_lp_in * slippage_metapool / PRICE_PRECISION;
         metapool_token.remove_liquidity_one_coin(metapool_lp_in, 1, min_3pool_out);
     }
 
@@ -216,7 +214,7 @@ contract CurveMetapoolLockerAMO is Owned {
         // May be related to https://github.com/vyperlang/vyper/blob/3e1ff1eb327e9017c5758e24db4bdf66bbfae371/examples/tokens/ERC20.vy#L85
         three_pool_erc20.approve(address(three_pool), 0);
         three_pool_erc20.approve(address(three_pool), _3pool_in);
-        uint256 min_collat_out = _3pool_in.mul(liq_slippage_3crv).div(PRICE_PRECISION * (10 ** missing_decimals));
+        uint256 min_collat_out = _3pool_in * liq_slippage_3crv / PRICE_PRECISION * (10 ** missing_decimals);
         three_pool.remove_liquidity_one_coin(_3pool_in, 1, min_collat_out);
     }
 
