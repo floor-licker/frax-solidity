@@ -22,7 +22,6 @@ pragma solidity >=0.6.11;
 // Sam Kazemian: https://github.com/samkazemian
 
 import "../Math/Math.sol";
-import "../Math/SafeMath.sol";
 import "../ERC20/ERC20.sol";
 import "../ERC20/SafeERC20.sol";
 import "./IFraxGaugeFXSRewardsDistributor.sol";
@@ -32,7 +31,6 @@ import "../Staking/Owned.sol";
 import "../Utils/ReentrancyGuard.sol";
 
 contract FraxMiddlemanGaugeFerryHelper is Owned {
-    using SafeMath for uint256;
     using SafeERC20 for ERC20;
 
     /* ========== STATE VARIABLES ========== */
