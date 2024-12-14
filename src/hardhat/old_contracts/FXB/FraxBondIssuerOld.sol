@@ -20,14 +20,12 @@ pragma solidity >=0.6.11;
 // Jason Huan: https://github.com/jasonhuan
 // Sam Kazemian: https://github.com/samkazemian
 
-import "../Math/SafeMath.sol";
 import "./FXB.sol";
 import "../Frax/Frax.sol";
 import "../ERC20/ERC20.sol";
 import "../Governance/AccessControl.sol";
 
 contract FraxBondIssuerOld is AccessControl {
-    // using SafeMath for uint256;
 
     // /* ========== STATE VARIABLES ========== */
     // enum DirectionChoice { BELOW_TO_FLOOR_FRAX_IN, ABOVE_TO_FLOOR }
@@ -126,8 +124,8 @@ contract FraxBondIssuerOld is AccessControl {
     //     timelock_address = _timelock_address;
 
     //     // Needed for initialization
-    //     epoch_start = (block.timestamp).sub(cooldown_period).sub(epoch_length);
-    //     epoch_end = (block.timestamp).sub(cooldown_period);
+    //     epoch_start = (block.timestamp) - cooldown_period - epoch_length;
+    //     epoch_end = (block.timestamp) - cooldown_period;
         
     //     _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
     //     DEFAULT_ADMIN_ADDRESS = _msgSender();
@@ -176,12 +174,12 @@ contract FraxBondIssuerOld is AccessControl {
 
     // // Checks if the bond is in the cooldown period
     // function isInCooldown() public view returns (bool in_cooldown) {
-    //     in_cooldown = ((block.timestamp >= epoch_end) && (block.timestamp < epoch_end.add(cooldown_period)));
+    //     in_cooldown = ((block.timestamp >= epoch_end) && (block.timestamp < epoch_end + cooldown_period));
     // }
 
     // // Calculates FXB outside the contract
     // function FXB_Outside_Contract() public view returns (uint256 fxb_outside_contract) {
-    //     fxb_outside_contract = (FXB.totalSupply()).sub(FXB.balanceOf(address(this)));
+    //     fxb_outside_contract = (FXB.totalSupply()) - FXB.balanceOf(address(this));
     // }
 
     // // Algorithmically calculated optimal initial discount rate
@@ -193,7 +191,7 @@ contract FraxBondIssuerOld is AccessControl {
 
     // // Liquidity balances for the floor price
     // function getVirtualFloorLiquidityBalances() public view returns (uint256 frax_balance, uint256 fxb_balance) {
-    //     frax_balance = target_liquidity_fxb.mul(floor_price()).div(PRICE_PRECISION);
+    //     frax_balance = target_liquidity_fxb * floor_price() / PRICE_PRECISION;
     //     fxb_balance = target_liquidity_fxb;
     // }
 
@@ -207,17 +205,17 @@ contract FraxBondIssuerOld is AccessControl {
     // // Will be used to help prevent someone from doing a huge arb with cheap bonds right before they mature
     // // Also allows the AMM to buy back cheap FXB under the floor and retire it, meaning less to pay back later at face value
     // function floor_price() public view returns (uint256 floor_price) {
-    //     uint256 time_into_epoch = (block.timestamp).sub(epoch_start);
+    //     uint256 time_into_epoch = (block.timestamp) - epoch_start;
     //     uint256 initial_discount = getInitialDiscount();
-    //     floor_price = (PRICE_PRECISION.sub(initial_discount)).add(initial_discount.mul(time_into_epoch).div(epoch_length));
+    //     floor_price = (PRICE_PRECISION - initial_discount) + initial_discount * time_into_epoch / epoch_length;
     // }
 
     // function initial_price() public view returns (uint256 initial_price) {
-    //     initial_price = (PRICE_PRECISION.sub(getInitialDiscount()));
+    //     initial_price = (PRICE_PRECISION - getInitialDiscount());
     // }
 
     // function issuable_fxb_value_in_frax() public view returns (uint256 frax_value) {
-    //     frax_value = issuable_fxb.mul(floor_price()).div(PRICE_PRECISION);
+    //     frax_value = issuable_fxb * floor_price() / PRICE_PRECISION;
     // }
 
     // function getInitialDiscount() public view returns (uint256 initial_discount) {
@@ -251,9 +249,9 @@ contract FraxBondIssuerOld is AccessControl {
     // function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut, uint the_fee) public view returns (uint amountOut) {
     //     require(amountIn > 0, 'FraxBondIssuer: INSUFFICIENT_INPUT_AMOUNT');
     //     require(reserveIn > 0 && reserveOut > 0, 'FraxBondIssuer: INSUFFICIENT_LIQUIDITY');
-    //     uint amountInWithFee = amountIn.mul(uint(1e6).sub(the_fee));
-    //     uint numerator = amountInWithFee.mul(reserveOut);
-    //     uint denominator = (reserveIn.mul(1e6)).add(amountInWithFee);
+    //     uint amountInWithFee = amountIn * uint(1e6 - the_fee);
+    //     uint numerator = amountInWithFee * reserveOut;
+    //     uint denominator = (reserveIn * 1e6) + amountInWithFee;
     //     amountOut = numerator / denominator;
     // }
 
@@ -269,13 +267,13 @@ contract FraxBondIssuerOld is AccessControl {
     //     uint256 the_floor_price = floor_price();
 
     //     // Get the expected amount of FXB from the floor-priced portion
-    //     fxb_out = frax_amount.mul(PRICE_PRECISION).div(the_floor_price);
+    //     fxb_out = frax_amount * PRICE_PRECISION / the_floor_price;
 
     //     // Calculate and apply the normal buying fee
-    //     fxb_fee_amt = fxb_out.mul(issue_fee).div(PRICE_PRECISION);
+    //     fxb_fee_amt = fxb_out * issue_fee / PRICE_PRECISION;
 
     //     // Apply the fee
-    //     fxb_out = fxb_out.sub(fxb_fee_amt);
+    //     fxb_out = fxb_out - fxb_fee_amt;
 
     //     // Check fxb_out_min
     //     require(fxb_out >= fxb_out_min, "[buyUnissuedFXB fxb_out_min]: Slippage limit reached");
@@ -284,7 +282,7 @@ contract FraxBondIssuerOld is AccessControl {
     //     require(fxb_out <= issuable_fxb, 'Trying to buy too many unissued bonds');
 
     //     // Decrement the unissued amount
-    //     issuable_fxb = issuable_fxb.sub(fxb_out);
+    //     issuable_fxb = issuable_fxb - fxb_out;
 
     //     // Burn FRAX from the sender
     //     FRAX.pool_burn_from(msg.sender, frax_amount);
@@ -309,10 +307,10 @@ contract FraxBondIssuerOld is AccessControl {
     //     fxb_out = fxb_out = getAmountOutNoFee(frax_amount, FRAX.balanceOf(address(this)), FXB.balanceOf(address(this)));
 
     //     // Calculate and apply the normal buying fee
-    //     fxb_fee_amt = fxb_out.mul(buying_fee).div(PRICE_PRECISION);
+    //     fxb_fee_amt = fxb_out * buying_fee / PRICE_PRECISION;
 
     //     // Apply the fee
-    //     fxb_out = fxb_out.sub(fxb_fee_amt);
+    //     fxb_out = fxb_out - fxb_fee_amt;
 
     //     // Check fxb_out_min
     //     require(fxb_out >= fxb_out_min, "[buyFXBfromAMM fxb_out_min]: Slippage limit reached");
@@ -325,7 +323,7 @@ contract FraxBondIssuerOld is AccessControl {
 
     //     // AMM will burn FRAX if the effective sale price is above 1. It is essentially free FRAX and a protocol-level profit
     //     {
-    //         uint256 effective_sale_price = frax_amount.mul(PRICE_PRECISION).div(fxb_out);
+    //         uint256 effective_sale_price = frax_amount * PRICE_PRECISION / fxb_out;
     //         if(effective_sale_price > PRICE_PRECISION){
     //             // Rebalance to $1
     //             _rebalance_AMM_FXB();
@@ -345,7 +343,7 @@ contract FraxBondIssuerOld is AccessControl {
     //     uint256 max_above_floor_sellable_fxb = maximum_fxb_AMM_sellable_above_floor();
     //     if(fxb_amount >= max_above_floor_sellable_fxb){
     //         fxb_bought_above_floor = max_above_floor_sellable_fxb;
-    //         fxb_sold_under_floor = fxb_amount.sub(max_above_floor_sellable_fxb);
+    //         fxb_sold_under_floor = fxb_amount - max_above_floor_sellable_fxb;
     //     }
     //     else {
     //         // no change to fxb_bought_above_floor
@@ -358,8 +356,8 @@ contract FraxBondIssuerOld is AccessControl {
     //         frax_out_above_floor = getAmountOutNoFee(fxb_bought_above_floor, FXB.balanceOf(address(this)), FRAX.balanceOf(address(this)));
         
     //         // Apply the normal selling fee to this portion
-    //         uint256 fee_above_floor = frax_out_above_floor.mul(selling_fee).div(PRICE_PRECISION);
-    //         frax_out_above_floor = frax_out_above_floor.sub(fee_above_floor);
+    //         uint256 fee_above_floor = frax_out_above_floor * selling_fee / PRICE_PRECISION;
+    //         frax_out_above_floor = frax_out_above_floor - fee_above_floor;
 
     //         // Informational for return values
     //         frax_fee_amt += fee_above_floor;
@@ -372,11 +370,11 @@ contract FraxBondIssuerOld is AccessControl {
     //     if (fxb_sold_under_floor > 0){
     //         // Get the virtual amount under the floor
     //         (uint256 frax_floor_balance_virtual, uint256 fxb_floor_balance_virtual) = getVirtualFloorLiquidityBalances();
-    //         frax_out_under_floor = getAmountOutNoFee(fxb_sold_under_floor, fxb_floor_balance_virtual.add(fxb_bought_above_floor), frax_floor_balance_virtual.sub(frax_out_above_floor));
+    //         frax_out_under_floor = getAmountOutNoFee(fxb_sold_under_floor, fxb_floor_balance_virtual + fxb_bought_above_floor, frax_floor_balance_virtual - frax_out_above_floor);
 
     //         // Apply the normal selling fee to this portion
-    //         uint256 fee_below_floor = frax_out_under_floor.mul(selling_fee).div(PRICE_PRECISION);
-    //         frax_out_under_floor = frax_out_under_floor.sub(fee_below_floor);
+    //         uint256 fee_below_floor = frax_out_under_floor * selling_fee / PRICE_PRECISION;
+    //         frax_out_under_floor = frax_out_under_floor - fee_below_floor;
 
     //         // Informational for return values
     //         frax_fee_amt += fee_below_floor;
@@ -408,8 +406,8 @@ contract FraxBondIssuerOld is AccessControl {
     //     FXB.transferFrom(msg.sender, address(this), fxb_amount);
 
     //     // Give 1 FRAX per 1 FXB, minus the redemption fee
-    //     frax_fee = fxb_amount.mul(redemption_fee).div(PRICE_PRECISION);
-    //     frax_out = fxb_amount.sub(frax_fee);
+    //     frax_fee = fxb_amount * redemption_fee / PRICE_PRECISION;
+    //     frax_out = fxb_amount - frax_fee;
 
     //     // Give the FRAX to the redeemer
     //     FRAX.pool_mint(msg.sender, frax_out);
@@ -422,17 +420,17 @@ contract FraxBondIssuerOld is AccessControl {
     // function _rebalance_AMM_FRAX_to_price(uint256 rebalance_price) internal {
     //     // Safety checks
     //     require(rebalance_price <= PRICE_PRECISION, "Rebalance price too high");
-    //     require(rebalance_price >= (PRICE_PRECISION.sub(failsafe_max_initial_discount)), "Rebalance price too low");
+    //     require(rebalance_price >= (PRICE_PRECISION - failsafe_max_initial_discount), "Rebalance price too low");
 
-    //     uint256 frax_required = target_liquidity_fxb.mul(rebalance_price).div(PRICE_PRECISION);
+    //     uint256 frax_required = target_liquidity_fxb * rebalance_price / PRICE_PRECISION;
     //     uint256 frax_inside_contract = FRAX.balanceOf(address(this));
     //     if (frax_required > frax_inside_contract){
     //         // Mint the deficiency
-    //         FRAX.pool_mint(address(this), frax_required.sub(frax_inside_contract));
+    //         FRAX.pool_mint(address(this), frax_required - frax_inside_contract);
     //     }
     //     else if (frax_required < frax_inside_contract){
     //         // Burn the excess
-    //         FRAX.burn(frax_inside_contract.sub(frax_required));
+    //         FRAX.burn(frax_inside_contract - frax_required);
     //     }
     //     else if (frax_required == frax_inside_contract){
     //         // Do nothing
@@ -444,18 +442,18 @@ contract FraxBondIssuerOld is AccessControl {
     //     uint256 fxb_inside_contract = FXB.balanceOf(address(this));
     //     if (fxb_required > fxb_inside_contract){
     //         // Mint the deficiency
-    //         FXB.issuer_mint(address(this), fxb_required.sub(fxb_inside_contract));
+    //         FXB.issuer_mint(address(this), fxb_required - fxb_inside_contract);
     //     }
     //     else if (fxb_required < fxb_inside_contract){
     //         // Burn the excess
-    //         FXB.burn(fxb_inside_contract.sub(fxb_required));
+    //         FXB.burn(fxb_inside_contract - fxb_required);
     //     }
     //     else if (fxb_required == fxb_inside_contract){
     //         // Do nothing
     //     }
 
     //     // Quick safety check
-    //     require(((FXB.totalSupply()).add(issuable_fxb)) <= max_fxb_outstanding, "Rebalance would exceed max_fxb_outstanding");
+    //     require(((FXB.totalSupply()) + issuable_fxb) <= max_fxb_outstanding, "Rebalance would exceed max_fxb_outstanding");
     // }
 
     // /* ========== RESTRICTED EXTERNAL FUNCTIONS ========== */
@@ -466,7 +464,7 @@ contract FraxBondIssuerOld is AccessControl {
     //     require(isInEpoch(), 'Not in an epoch');
 
     //     // Expand the FXB target liquidity
-    //     target_liquidity_fxb = target_liquidity_fxb.add(fxb_expansion_amount);
+    //     target_liquidity_fxb = target_liquidity_fxb + fxb_expansion_amount;
 
     //     // Do the rebalance
     //     rebalance_AMM_liquidity_to_price(amm_spot_price());
@@ -478,7 +476,7 @@ contract FraxBondIssuerOld is AccessControl {
     //     require(isInEpoch(), 'Not in an epoch');
 
     //     // Expand the FXB target liquidity
-    //     target_liquidity_fxb = target_liquidity_fxb.sub(fxb_contraction_amount);
+    //     target_liquidity_fxb = target_liquidity_fxb - fxb_contraction_amount;
 
     //     // Do the rebalance
     //     rebalance_AMM_liquidity_to_price(amm_spot_price());
@@ -501,14 +499,14 @@ contract FraxBondIssuerOld is AccessControl {
     //     uint256 initial_discount = getInitialDiscount();
 
     //     // Rebalance the AMM liquidity
-    //     rebalance_AMM_liquidity_to_price(PRICE_PRECISION.sub(initial_discount));
+    //     rebalance_AMM_liquidity_to_price(PRICE_PRECISION - initial_discount);
 
     //     // Sanity check in case algorithmicInitialDiscount() messes up somehow or is exploited
     //     require(initial_discount <= failsafe_max_initial_discount, "Initial discount is more than max failsafe");
 
     //     // Set state variables
     //     epoch_start = block.timestamp;
-    //     epoch_end = epoch_start.add(epoch_length);
+    //     epoch_end = epoch_start + epoch_length;
 
     //     emit FXB_EpochStarted(msg.sender, epoch_start, epoch_end, epoch_length, initial_discount, max_fxb_outstanding);
     // }
@@ -518,15 +516,15 @@ contract FraxBondIssuerOld is AccessControl {
     //     uint256 fxb_contract_balance = FXB.balanceOf(address(this));
         
     //     if (choice == DirectionChoice.BELOW_TO_FLOOR_FRAX_IN) {
-    //         uint256 numerator = sqrt(frax_contract_balance).mul(sqrt(fxb_contract_balance)).mul(sqrt(PRICE_PRECISION));
+    //         uint256 numerator = sqrt(frax_contract_balance) * sqrt(fxb_contract_balance) * sqrt(PRICE_PRECISION);
     //         // The "price" here needs to be inverted 
-    //         uint256 denominator = sqrt(uint256(PRICE_PRECISION ** 2).div(the_floor_price));
-    //         bounded_amount = numerator.div(denominator).sub(frax_contract_balance);
+    //         uint256 denominator = sqrt(uint256(PRICE_PRECISION ** 2) / the_floor_price);
+    //         bounded_amount = numerator / denominator - frax_contract_balance;
     //     }
     //     else if (choice == DirectionChoice.ABOVE_TO_FLOOR) {
-    //         uint256 numerator = sqrt(frax_contract_balance).mul(sqrt(fxb_contract_balance)).mul(sqrt(PRICE_PRECISION));
+    //         uint256 numerator = sqrt(frax_contract_balance) * sqrt(fxb_contract_balance) * sqrt(PRICE_PRECISION);
     //         uint256 denominator = sqrt(the_floor_price);
-    //         bounded_amount = numerator.div(denominator).sub(fxb_contract_balance);
+    //         bounded_amount = numerator / denominator - fxb_contract_balance;
     //     }
 
     // }
@@ -574,7 +572,7 @@ contract FraxBondIssuerOld is AccessControl {
 
     // function setUnissuedFXB(uint256 _issuable_fxb) external onlyByOwnGov {
     //     if (_issuable_fxb > issuable_fxb){
-    //         require(((FXB.totalSupply()).add(_issuable_fxb)) <= max_fxb_outstanding, "New issue would exceed max_fxb_outstanding");
+    //         require(((FXB.totalSupply()) + _issuable_fxb) <= max_fxb_outstanding, "New issue would exceed max_fxb_outstanding");
     //     }
     //     issuable_fxb = _issuable_fxb;
     // }
@@ -597,7 +595,7 @@ contract FraxBondIssuerOld is AccessControl {
     // function setDefaultInitialDiscount(uint256 _default_initial_discount, bool _rebalance_AMM) external onlyByOwnGov {
     //     default_initial_discount = _default_initial_discount;
     //     if (_rebalance_AMM){
-    //         rebalance_AMM_liquidity_to_price(PRICE_PRECISION.sub(getInitialDiscount()));
+    //         rebalance_AMM_liquidity_to_price(PRICE_PRECISION - getInitialDiscount());
     //     }
     // }
 
