@@ -20,7 +20,6 @@ pragma solidity >=0.8.0;
 // Jason Huan: https://github.com/jasonhuan
 // Sam Kazemian: https://github.com/samkazemian
 
-import "../Math/SafeMath.sol";
 import "../FXS/FXS.sol";
 import "../Frax/Frax.sol";
 import "../Frax/Pools/FraxPool.sol";
@@ -41,7 +40,6 @@ import '../Uniswap/TransferHelper.sol';
 // Higher APY: KeeperDAO, BZX, Harvest
 
 contract FraxPoolInvestorForV2 is AccessControl, Owned {
-    using SafeMath for uint256;
     // SafeMath automatically included in Solidity >= 8.0.0
 
     /* ========== STATE VARIABLES ========== */
@@ -113,7 +111,7 @@ contract FraxPoolInvestorForV2 is AccessControl, Owned {
         collateral_address = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
         collateral_token = ERC20(collateral_address);
         amo_minter = IFraxAMOMinter(_amo_minter_address);
-        missing_decimals = uint(18).sub(collateral_token.decimals());
+        missing_decimals = uint(18) - collateral_token.decimals();
         
         _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
 
@@ -130,14 +128,14 @@ contract FraxPoolInvestorForV2 is AccessControl, Owned {
 
         // All numbers given are assuming xyzUSDC, etc. is converted back to actual USDC
         allocations[0] = collateral_token.balanceOf(address(this)); // Unallocated
-        allocations[1] = (yUSDC_V2.balanceOf(address(this))).mul(yUSDC_V2.pricePerShare()).div(1e6); // yearn
+        allocations[1] = (yUSDC_V2.balanceOf(address(this))) * yUSDC_V2.pricePerShare() / 1e6; // yearn
         allocations[2] = aaveUSDC_Token.balanceOf(address(this)); // AAVE
-        allocations[3] = (cUSDC.balanceOf(address(this)).mul(cUSDC.exchangeRateStored()).div(1e18)); // Compound. Note that cUSDC is E8
+        allocations[3] = (cUSDC.balanceOf(address(this)) * cUSDC.exchangeRateStored() / 1e18); // Compound. Note that cUSDC is E8
 
         uint256 sum_tally = 0;
         for (uint i = 1; i < 5; i++){ 
             if (allocations[i] > 0){
-                sum_tally = sum_tally.add(allocations[i]);
+                sum_tally = sum_tally + allocations[i];
             }
         }
 
@@ -157,13 +155,13 @@ contract FraxPoolInvestorForV2 is AccessControl, Owned {
         // Needs to mimic the FraxPool value and return in E18
         // Only thing different should be borrowed_balance vs balanceOf()
         if(pool.collateralPricePaused() == true){
-            return borrowed_balance.mul(10 ** missing_decimals).mul(pool.pausedPrice()).div(PRICE_PRECISION);
+            return borrowed_balance * 10 ** missing_decimals * pool.pausedPrice() / PRICE_PRECISION;
         } else {
             uint256 eth_usd_price = FRAX.eth_usd_price();
             uint256 eth_collat_price = UniswapPairOracle(pool.collat_eth_oracle_address()).consult(weth_address, (PRICE_PRECISION * (10 ** missing_decimals)));
 
-            uint256 collat_usd_price = eth_usd_price.mul(PRICE_PRECISION).div(eth_collat_price);
-            return borrowed_balance.mul(10 ** missing_decimals).mul(collat_usd_price).div(PRICE_PRECISION); //.mul(getCollateralPrice()).div(1e6);    
+            uint256 collat_usd_price = eth_usd_price * PRICE_PRECISION / eth_collat_price;
+            return borrowed_balance * 10 ** missing_decimals * collat_usd_price / PRICE_PRECISION; // * getCollateralPrice() / 1e6;    
         }
     }
 
@@ -172,13 +170,13 @@ contract FraxPoolInvestorForV2 is AccessControl, Owned {
         uint256 redemption_fee = pool.redemption_fee();
         uint256 col_price_usd = pool.getCollateralPrice();
         uint256 global_collateral_ratio = FRAX.global_collateral_ratio();
-        uint256 redeem_amount_E6 = (frax_amount.mul(uint256(1e6).sub(redemption_fee))).div(1e6).div(10 ** missing_decimals);
-        uint256 expected_collat_amount = redeem_amount_E6.mul(global_collateral_ratio).div(1e6);
-        expected_collat_amount = expected_collat_amount.mul(1e6).div(col_price_usd);
+        uint256 redeem_amount_E6 = (frax_amount * uint256(1e6 - redemption_fee)) / 1e6 / 10 ** missing_decimals;
+        uint256 expected_collat_amount = redeem_amount_E6 * global_collateral_ratio / 1e6;
+        expected_collat_amount = expected_collat_amount * 1e6 / col_price_usd;
 
-        require(borrowed_balance.add(expected_collat_amount) <= borrow_cap, "Borrow cap reached");
-        borrowed_balance = borrowed_balance.add(expected_collat_amount);
-        borrowed_historical = borrowed_historical.add(expected_collat_amount);
+        require(borrowed_balance + expected_collat_amount <= borrow_cap, "Borrow cap reached");
+        borrowed_balance = borrowed_balance + expected_collat_amount;
+        borrowed_historical = borrowed_historical + expected_collat_amount;
 
         // Mint the frax 
         amo_minter.mintFraxForAMO(frax_amount);
@@ -197,13 +195,13 @@ contract FraxPoolInvestorForV2 is AccessControl, Owned {
     function giveCollatBack(uint256 amount) public onlyByOwnGovCust {
         // Still paying back principal
         if (amount <= borrowed_balance) {
-            borrowed_balance = borrowed_balance.sub(amount);
+            borrowed_balance = borrowed_balance - amount;
         }
         // Pure profits
         else {
             borrowed_balance = 0;
         }
-        paid_back_historical = paid_back_historical.add(amount);
+        paid_back_historical = paid_back_historical + amount;
         collateral_token.transfer(address(pool), amount);
     }
    
