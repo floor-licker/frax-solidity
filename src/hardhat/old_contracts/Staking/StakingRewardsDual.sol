@@ -26,7 +26,6 @@ pragma experimental ABIEncoderV2;
 // https://raw.githubusercontent.com/Synthetixio/synthetix/develop/contracts/StakingRewards.sol
 
 import "../Math/Math.sol";
-import "../Math/SafeMath.sol";
 import "../ERC20/ERC20.sol";
 import '../Uniswap/TransferHelper.sol';
 import "../ERC20/SafeERC20.sol";
@@ -40,7 +39,6 @@ import "./Owned.sol";
 import "./Pausable.sol";
 
 contract StakingRewardsDual is IStakingRewardsDual, Owned, ReentrancyGuard, Pausable {
-    using SafeMath for uint256;
     using SafeERC20 for ERC20;
 
     /* ========== STATE VARIABLES ========== */
@@ -128,12 +126,12 @@ contract StakingRewardsDual is IStakingRewardsDual, Owned, ReentrancyGuard, Paus
         pool_weight1 = _pool_weight1;
 
         // 1000 FXS a day
-        rewardRate0 = (uint256(365000e18)).div(365 * 86400); 
-        rewardRate0 = rewardRate0.mul(pool_weight0).div(1e6);
+        rewardRate0 = (uint256(365000e18)) / 365 * 86400; 
+        rewardRate0 = rewardRate0 * pool_weight0 / 1e6;
 
         // ??? CRVDAO a day eventually
         rewardRate1 = 0; 
-        rewardRate1 = rewardRate1.mul(pool_weight1).div(1e6);
+        rewardRate1 = rewardRate1 * pool_weight1 / 1e6;
         unlockedStakes = false;
     }
 
@@ -148,19 +146,19 @@ contract StakingRewardsDual is IStakingRewardsDual, Owned, ReentrancyGuard, Paus
     }
 
     function stakingMultiplier(uint256 secs) public view returns (uint256) {
-        uint256 multiplier = uint(MULTIPLIER_BASE).add(secs.mul(locked_stake_max_multiplier.sub(MULTIPLIER_BASE)).div(locked_stake_time_for_max_multiplier));
+        uint256 multiplier = uint(MULTIPLIER_BASE) + secs * locked_stake_max_multiplier - MULTIPLIER_BASE / locked_stake_time_for_max_multiplier;
         if (multiplier > locked_stake_max_multiplier) multiplier = locked_stake_max_multiplier;
         return multiplier;
     }
 
     function crBoostMultiplier() public view returns (uint256) {
-        uint256 multiplier = uint(MULTIPLIER_BASE).add((uint(MULTIPLIER_BASE).sub(FRAX.global_collateral_ratio())).mul(cr_boost_max_multiplier.sub(MULTIPLIER_BASE)).div(MULTIPLIER_BASE) );
+        uint256 multiplier = uint(MULTIPLIER_BASE) + (uint(MULTIPLIER_BASE - FRAX.global_collateral_ratio()) * cr_boost_max_multiplier - MULTIPLIER_BASE / MULTIPLIER_BASE );
         return multiplier;
     }
 
     // Total unlocked and locked liquidity tokens
     function balanceOf(address account) external override view returns (uint256) {
-        return (_unlocked_balances[account]).add(_locked_balances[account]);
+        return (_unlocked_balances[account]) + _locked_balances[account];
     }
 
     // Total unlocked liquidity tokens
@@ -204,12 +202,12 @@ contract StakingRewardsDual is IStakingRewardsDual, Owned, ReentrancyGuard, Paus
             return (
                 // Boosted emission
                 rewardPerTokenStored0.add(
-                    lastTimeRewardApplicable().sub(lastUpdateTime).mul(rewardRate0).mul(crBoostMultiplier()).mul(1e18).div(PRICE_PRECISION).div(_staking_token_boosted_supply)
+                    lastTimeRewardApplicable() - lastUpdateTime * rewardRate0 * crBoostMultiplier() * 1e18 / PRICE_PRECISION / _staking_token_boosted_supply
                 ),
                 // Flat emission
                 // Locked stakes will still get more weight with token1 rewards, but the CR boost will be canceled out for everyone
                 rewardPerTokenStored1.add(
-                    lastTimeRewardApplicable().sub(lastUpdateTime).mul(rewardRate1).mul(1e18).div(_staking_token_boosted_supply)
+                    lastTimeRewardApplicable() - lastUpdateTime * rewardRate1 * 1e18 / _staking_token_boosted_supply
                 )
             );
         }
@@ -218,15 +216,15 @@ contract StakingRewardsDual is IStakingRewardsDual, Owned, ReentrancyGuard, Paus
     function earned(address account) public override view returns (uint256, uint256) {
         (uint256 reward0, uint256 reward1) = rewardPerToken();
         return (
-            _boosted_balances[account].mul(reward0.sub(userRewardPerTokenPaid0[account])).div(1e18).add(rewards0[account]),
-            _boosted_balances[account].mul(reward1.sub(userRewardPerTokenPaid1[account])).div(1e18).add(rewards1[account])
+            _boosted_balances[account] * reward0 - userRewardPerTokenPaid0[account] / 1e18 + rewards0[account],
+            _boosted_balances[account] * reward1 - userRewardPerTokenPaid1[account] / 1e18 + rewards1[account]
         );
     }
 
     function getRewardForDuration() external override view returns (uint256, uint256) {
         return (
-            rewardRate0.mul(rewardsDuration).mul(crBoostMultiplier()).div(PRICE_PRECISION),
-            rewardRate1.mul(rewardsDuration)
+            rewardRate0 * rewardsDuration * crBoostMultiplier() / PRICE_PRECISION,
+            rewardRate1 * rewardsDuration
         );
     }
 
@@ -240,12 +238,12 @@ contract StakingRewardsDual is IStakingRewardsDual, Owned, ReentrancyGuard, Paus
         TransferHelper.safeTransferFrom(address(stakingToken), msg.sender, address(this), amount);
 
         // Staking token supply and boosted supply
-        _staking_token_supply = _staking_token_supply.add(amount);
-        _staking_token_boosted_supply = _staking_token_boosted_supply.add(amount);
+        _staking_token_supply = _staking_token_supply + amount;
+        _staking_token_boosted_supply = _staking_token_boosted_supply + amount;
 
         // Staking token balance and boosted balance
-        _unlocked_balances[msg.sender] = _unlocked_balances[msg.sender].add(amount);
-        _boosted_balances[msg.sender] = _boosted_balances[msg.sender].add(amount);
+        _unlocked_balances[msg.sender] = _unlocked_balances[msg.sender] + amount;
+        _boosted_balances[msg.sender] = _boosted_balances[msg.sender] + amount;
 
         emit Staked(msg.sender, amount);
     }
@@ -258,12 +256,12 @@ contract StakingRewardsDual is IStakingRewardsDual, Owned, ReentrancyGuard, Paus
         require(secs <= locked_stake_time_for_max_multiplier, "You are trying to stake for too long");
 
         uint256 multiplier = stakingMultiplier(secs);
-        uint256 boostedAmount = amount.mul(multiplier).div(PRICE_PRECISION);
+        uint256 boostedAmount = amount * multiplier / PRICE_PRECISION;
         lockedStakes[msg.sender].push(LockedStake(
             keccak256(abi.encodePacked(msg.sender, block.timestamp, amount)),
             block.timestamp,
             amount,
-            block.timestamp.add(secs),
+            block.timestamp + secs,
             multiplier
         ));
 
@@ -271,12 +269,12 @@ contract StakingRewardsDual is IStakingRewardsDual, Owned, ReentrancyGuard, Paus
         TransferHelper.safeTransferFrom(address(stakingToken), msg.sender, address(this), amount);
 
         // Staking token supply and boosted supply
-        _staking_token_supply = _staking_token_supply.add(amount);
-        _staking_token_boosted_supply = _staking_token_boosted_supply.add(boostedAmount);
+        _staking_token_supply = _staking_token_supply + amount;
+        _staking_token_boosted_supply = _staking_token_boosted_supply + boostedAmount;
 
         // Staking token balance and boosted balance
-        _locked_balances[msg.sender] = _locked_balances[msg.sender].add(amount);
-        _boosted_balances[msg.sender] = _boosted_balances[msg.sender].add(boostedAmount);
+        _locked_balances[msg.sender] = _locked_balances[msg.sender] + amount;
+        _boosted_balances[msg.sender] = _boosted_balances[msg.sender] + boostedAmount;
 
         emit StakeLocked(msg.sender, amount, secs);
     }
@@ -285,12 +283,12 @@ contract StakingRewardsDual is IStakingRewardsDual, Owned, ReentrancyGuard, Paus
         require(amount > 0, "Cannot withdraw 0");
 
         // Staking token balance and boosted balance
-        _unlocked_balances[msg.sender] = _unlocked_balances[msg.sender].sub(amount);
-        _boosted_balances[msg.sender] = _boosted_balances[msg.sender].sub(amount);
+        _unlocked_balances[msg.sender] = _unlocked_balances[msg.sender] - amount;
+        _boosted_balances[msg.sender] = _boosted_balances[msg.sender] - amount;
 
         // Staking token supply and boosted supply
-        _staking_token_supply = _staking_token_supply.sub(amount);
-        _staking_token_boosted_supply = _staking_token_boosted_supply.sub(amount);
+        _staking_token_supply = _staking_token_supply - amount;
+        _staking_token_boosted_supply = _staking_token_boosted_supply - amount;
 
         // Give the tokens to the withdrawer
         stakingToken.safeTransfer(msg.sender, amount);
@@ -312,15 +310,15 @@ contract StakingRewardsDual is IStakingRewardsDual, Owned, ReentrancyGuard, Paus
         require(block.timestamp >= thisStake.ending_timestamp || unlockedStakes == true, "Stake is still locked!");
 
         uint256 theAmount = thisStake.amount;
-        uint256 boostedAmount = theAmount.mul(thisStake.multiplier).div(PRICE_PRECISION);
+        uint256 boostedAmount = theAmount * thisStake.multiplier / PRICE_PRECISION;
         if (theAmount > 0){
             // Staking token balance and boosted balance
-            _locked_balances[msg.sender] = _locked_balances[msg.sender].sub(theAmount);
-            _boosted_balances[msg.sender] = _boosted_balances[msg.sender].sub(boostedAmount);
+            _locked_balances[msg.sender] = _locked_balances[msg.sender] - theAmount;
+            _boosted_balances[msg.sender] = _boosted_balances[msg.sender] - boostedAmount;
 
             // Staking token supply and boosted supply
-            _staking_token_supply = _staking_token_supply.sub(theAmount);
-            _staking_token_boosted_supply = _staking_token_boosted_supply.sub(boostedAmount);
+            _staking_token_supply = _staking_token_supply - theAmount;
+            _staking_token_boosted_supply = _staking_token_boosted_supply - boostedAmount;
 
             // Remove the stake from the array
             delete lockedStakes[msg.sender][theIndex];
@@ -357,21 +355,21 @@ contract StakingRewardsDual is IStakingRewardsDual, Owned, ReentrancyGuard, Paus
         // This keeps the reward rate in the right range, preventing overflows due to
         // very high values of rewardRate in the earned and rewardsPerToken functions;
         // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
-        uint256 num_periods_elapsed = uint256(block.timestamp.sub(periodFinish)) / rewardsDuration; // Floor division to the nearest period
+        uint256 num_periods_elapsed = uint256(block.timestamp - periodFinish) / rewardsDuration; // Floor division to the nearest period
         uint balance0 = rewardsToken0.balanceOf(address(this));
         uint balance1 = rewardsToken1.balanceOf(address(this));
-        require(rewardRate0.mul(rewardsDuration).mul(crBoostMultiplier()).mul(num_periods_elapsed + 1).div(PRICE_PRECISION) <= balance0, "Not enough FXS available");
+        require(rewardRate0 * rewardsDuration * crBoostMultiplier() * num_periods_elapsed + 1 / PRICE_PRECISION <= balance0, "Not enough FXS available");
         
         
         if (token1_rewards_on){
-            require(rewardRate1.mul(rewardsDuration).mul(num_periods_elapsed + 1) <= balance1, "Not enough token1 available for rewards!");
+            require(rewardRate1 * rewardsDuration * num_periods_elapsed + 1 <= balance1, "Not enough token1 available for rewards!");
         }
         
         // uint256 old_lastUpdateTime = lastUpdateTime;
         // uint256 new_lastUpdateTime = block.timestamp;
 
         // lastUpdateTime = periodFinish;
-        periodFinish = periodFinish.add((num_periods_elapsed.add(1)).mul(rewardsDuration));
+        periodFinish = periodFinish + (num_periods_elapsed.add(1) * rewardsDuration);
 
         (uint256 reward0, uint256 reward1) = rewardPerToken();
         rewardPerTokenStored0 = reward0;
@@ -426,7 +424,7 @@ contract StakingRewardsDual is IStakingRewardsDual, Owned, ReentrancyGuard, Paus
 
     function initializeDefault() external onlyByOwnGov {
         lastUpdateTime = block.timestamp;
-        periodFinish = block.timestamp.add(rewardsDuration);
+        periodFinish = block.timestamp + rewardsDuration;
         emit DefaultInitialization();
     }
 
