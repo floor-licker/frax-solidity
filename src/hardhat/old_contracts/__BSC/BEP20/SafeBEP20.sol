@@ -2,7 +2,6 @@
 pragma solidity >=0.6.11;
 
 import './IBEP20.sol';
-import '../Math/SafeMath.sol';
 import '../Utils/Address.sol';
 
 /**
@@ -15,7 +14,6 @@ import '../Utils/Address.sol';
  * which allows you to call the safe operations as `token.safeTransfer(...)`, etc.
  */
 library SafeBEP20 {
-    using SafeMath for uint256;
     using Address for address;
 
     function safeTransfer(
@@ -63,7 +61,7 @@ library SafeBEP20 {
         address spender,
         uint256 value
     ) internal {
-        uint256 newAllowance = token.allowance(address(this), spender).add(value);
+        uint256 newAllowance = token.allowance(address(this), spender) + value;
         _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, newAllowance));
     }
 
