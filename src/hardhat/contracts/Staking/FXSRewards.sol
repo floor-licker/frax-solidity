@@ -51,11 +51,9 @@ import "../Curve/IveFXS.sol";
 import "../ERC20/ERC20.sol";
 import "../Frax/Frax.sol";
 import "../FXS/FXS.sol";
-import "../Math/SafeMath.sol";
 import "../Oracle/ChainlinkFXSUSDPriceConsumer.sol";
 
 contract FXSRewards {
-    using SafeMath for uint256;
 
     /* ========== STATE VARIABLES ========== */
 
@@ -129,7 +127,7 @@ contract FXSRewards {
         three_pool_token_address = _three_pool_token_address;
         three_pool_erc20 = ERC20(_three_pool_token_address);
 
-        missing_decimals = uint(18).sub(collateral_token.decimals());
+        missing_decimals = uint(18) - collateral_token.decimals();
     }
 
     /* ========== MODIFIERS ========== */
@@ -142,7 +140,7 @@ contract FXSRewards {
     /* ========== VIEWS ========== */
 
     function fxsDollarValueStaked() public view returns (uint256) {
-        return FXS.balanceOf(address(veFXS)).mul(uint256(fxs_usd_pricer.getLatestPrice())).div(10 ** fxs_usd_pricer_decimals);
+        return FXS.balanceOf(address(veFXS)) * uint256(fxs_usd_pricer.getLatestPrice()) / 10 ** fxs_usd_pricer_decimals;
     }
 
     function collatDollarBalance() public pure returns (uint256) {
@@ -151,7 +149,7 @@ contract FXSRewards {
 
     // Returns ratio of minted FRAX against staked FXS, in 1e6
     function leverageRatio() public view returns (uint256) {
-        return (minted_frax_historical.sub(burned_frax_historical)).mul(1e6).div(fxsDollarValueStaked());
+        return (minted_frax_historical - burned_frax_historical) * 1e6 / fxsDollarValueStaked();
     }
 
     /* ========== RESTRICTED FUNCTIONS ========== */
@@ -165,14 +163,14 @@ contract FXSRewards {
     // mint FRAX against staked FXS
     function _mintFRAX(uint256 frax_amount) internal {
         // Make sure the FRAX minting wouldn't push the CR down too much
-        uint256 current_collateral_E18 = (FRAX.globalCollateralValue());//.add(unspentInvestorAMOProfit_E18());
+        uint256 current_collateral_E18 = (FRAX.globalCollateralValue());// + unspentInvestorAMOProfit_E18();
         uint256 cur_frax_supply = FRAX.totalSupply();
-        uint256 new_frax_supply = cur_frax_supply.add(frax_amount);
-        uint256 new_cr = (current_collateral_E18.mul(1e6)).div(new_frax_supply);
+        uint256 new_frax_supply = cur_frax_supply + frax_amount;
+        uint256 new_cr = (current_collateral_E18 * 1e6) / new_frax_supply;
         require(new_cr > min_cr, "CR would be too low");
 
         // Mint the frax 
-        minted_frax_historical = minted_frax_historical.add(frax_amount);
+        minted_frax_historical = minted_frax_historical + frax_amount;
         FRAX.pool_mint(address(this), frax_amount);
     }
 
@@ -184,22 +182,22 @@ contract FXSRewards {
     // Burn unneeded or excess FRAX
     function burnFRAX(uint256 frax_amount) public onlyByOwnGov {
         FRAX.burn(frax_amount);
-        burned_frax_historical = burned_frax_historical.add(frax_amount);
+        burned_frax_historical = burned_frax_historical + frax_amount;
     }
 
     int128 FRAX_INDEX = 0;
     int128 USDC_INDEX = 2;
     // swap minted FRAX for collateral from curve pool, returns collateral amount received
     function swapCollateral(uint256 frax_amount) public onlyByOwnGov returns (uint256) {
-        uint256 received_collat = frax3crv_metapool.exchange_underlying(FRAX_INDEX, USDC_INDEX, frax_amount, frax_amount.mul(curve_slippage).div(1e6));
-        swapped_collateral_historical = swapped_collateral_historical.add(received_collat);
+        uint256 received_collat = frax3crv_metapool.exchange_underlying(FRAX_INDEX, USDC_INDEX, frax_amount, frax_amount * curve_slippage / 1e6);
+        swapped_collateral_historical = swapped_collateral_historical + received_collat;
         return received_collat;
     }
 
     // swap collateral for FRAX, returns FRAX amount received
     function returnCollateral(uint256 collateral_amount) public onlyByOwnGov returns (uint256) {
-        uint256 received_frax = frax3crv_metapool.exchange_underlying(USDC_INDEX, FRAX_INDEX, collateral_amount, collateral_amount.mul(curve_slippage).div(1e6));
-        returned_collateral_historical = returned_collateral_historical.add(received_frax);
+        uint256 received_frax = frax3crv_metapool.exchange_underlying(USDC_INDEX, FRAX_INDEX, collateral_amount, collateral_amount * curve_slippage / 1e6);
+        returned_collateral_historical = returned_collateral_historical + received_frax;
         return received_frax;
     }
 
