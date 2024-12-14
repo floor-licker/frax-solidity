@@ -20,7 +20,6 @@ pragma solidity >=0.6.11;
 // Reviewer(s) / Contributor(s)
 // Travis Moore: https://github.com/FortisFortuna
 
-import "../Math/SafeMath.sol";
 import "../Math/Math.sol";
 import "../Uniswap/Interfaces/IUniswapV2Pair.sol";
 import "../Staking/Owned.sol";
@@ -30,7 +29,6 @@ import "../Curve/IMetaImplementationUSD.sol";
 import "./ChainlinkFXSUSDPriceConsumer.sol";
 
 contract ReserveTracker is Owned {
-    using SafeMath for uint256;
 
     // Various precisions
     uint256 public CONSULT_FXS_DEC;
@@ -107,7 +105,7 @@ contract ReserveTracker is Owned {
     // // Returns FXS price with 6 decimals of precision
     // function getFXSPrice() public view returns (uint256) {
     //     uint256 fxs_weth_price = fxs_weth_oracle.consult(fxs_contract_address, 1e6);
-    //     return weth_collat_oracle.consult(weth_address, CONSULT_FXS_DEC).mul(fxs_weth_price).div(1e6);
+    //     return weth_collat_oracle.consult(weth_address, CONSULT_FXS_DEC) * fxs_weth_price / 1e6;
     // }
 
     function getFRAXPrice() public view returns (uint256) {
@@ -115,7 +113,7 @@ contract ReserveTracker is Owned {
     }
 
     function getFXSPrice() public view returns (uint256) {
-        return uint256(chainlink_fxs_oracle.getLatestPrice()).mul(PRICE_PRECISION).div(10 ** chainlink_fxs_oracle_decimals);
+        return uint256(chainlink_fxs_oracle.getLatestPrice()) * PRICE_PRECISION / 10 ** chainlink_fxs_oracle_decimals;
     }
 
     function getFXSReserves() public view returns (uint256) {
@@ -126,10 +124,10 @@ contract ReserveTracker is Owned {
             if (fxs_pairs_array[i] != address(0)){
                 if(IUniswapV2Pair(fxs_pairs_array[i]).token0() == fxs_contract_address) {
                     (uint reserves0, , ) = IUniswapV2Pair(fxs_pairs_array[i]).getReserves();
-                    total_fxs_reserves = total_fxs_reserves.add(reserves0);
+                    total_fxs_reserves = total_fxs_reserves + reserves0;
                 } else if (IUniswapV2Pair(fxs_pairs_array[i]).token1() == fxs_contract_address) {
                     ( , uint reserves1, ) = IUniswapV2Pair(fxs_pairs_array[i]).getReserves();
-                    total_fxs_reserves = total_fxs_reserves.add(reserves1);
+                    total_fxs_reserves = total_fxs_reserves + reserves1;
                 }
             }
         }
@@ -141,13 +139,13 @@ contract ReserveTracker is Owned {
 
     function refreshFRAXCurveTWAP() public returns (uint256) {
         require(twap_paused == false, "TWAP has been paused");
-        uint256 time_elapsed = (block.timestamp).sub(last_timestamp);
+        uint256 time_elapsed = (block.timestamp) - last_timestamp;
         require(time_elapsed >= PERIOD, 'ReserveTracker: PERIOD_NOT_ELAPSED');
         uint256[2] memory new_twap = frax_metapool.get_price_cumulative_last();
         uint256[2] memory balances = frax_metapool.get_twap_balances(old_twap, new_twap, time_elapsed);
         last_timestamp = block.timestamp;
         old_twap = new_twap;
-        frax_twap_price = frax_metapool.get_dy(1, 0, 1e18, balances).mul(1e6).div(frax_metapool.get_virtual_price());
+        frax_twap_price = frax_metapool.get_dy(1, 0, 1e18, balances) * 1e6 / frax_metapool.get_virtual_price();
         return frax_twap_price;
     }
 
@@ -172,7 +170,7 @@ contract ReserveTracker is Owned {
         frax_pair_collateral_address = _frax_pair_collateral_address;
         frax_pair_collateral_decimals = _frax_pair_collateral_decimals;
         frax_price_oracle = UniswapPairOracle(frax_price_oracle_address);
-        CONSULT_FRAX_DEC = 1e6 * (10 ** (uint256(18).sub(frax_pair_collateral_decimals)));
+        CONSULT_FRAX_DEC = 1e6 * (10 ** (uint256(18) - frax_pair_collateral_decimals));
     }
 
     function setMetapool(address _frax_metapool_address) public onlyByOwnGov {
@@ -191,7 +189,7 @@ contract ReserveTracker is Owned {
         weth_collat_oracle_address = _weth_collateral_oracle_address;
         weth_collat_decimals = _collateral_decimals;
         weth_collat_oracle = UniswapPairOracle(_weth_collateral_oracle_address);
-        CONSULT_FXS_DEC = 1e6 * (10 ** (uint256(18).sub(_collateral_decimals)));
+        CONSULT_FXS_DEC = 1e6 * (10 ** (uint256(18) - _collateral_decimals));
     }
 
     // Adds collateral addresses supported, such as tether and busd, must be ERC20 
