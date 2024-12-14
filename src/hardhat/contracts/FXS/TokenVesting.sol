@@ -3,7 +3,6 @@ pragma solidity >=0.6.11;
 
 import "../ERC20/ERC20Custom.sol";
 import "../ERC20/ERC20.sol";
-import "../Math/SafeMath.sol";
 
 /**
  * @title TokenVesting
@@ -20,7 +19,6 @@ contract TokenVesting {
     // cliff period of a year and a duration of four years, are safe to use.
     // solhint-disable not-rely-on-time
 
-    using SafeMath for uint256;
 
     event TokensReleased(uint256 amount);
     event TokenVestingRevoked();
@@ -67,12 +65,12 @@ contract TokenVesting {
         require(cliffDuration <= duration, "TokenVesting: cliff is longer than duration");
         require(duration > 0, "TokenVesting: duration is 0");
         // solhint-disable-next-line max-line-length
-        require(start.add(duration) > block.timestamp, "TokenVesting: final time is before current time");
+        require(start + duration > block.timestamp, "TokenVesting: final time is before current time");
 
         _beneficiary = beneficiary;
         _revocable = revocable;
         _duration = duration;
-        _cliff = start.add(cliffDuration);
+        _cliff = start + cliffDuration;
         _start = start;
         _owner = msg.sender;
     }
@@ -146,7 +144,7 @@ contract TokenVesting {
 
         require(unreleased > 0, "TokenVesting: no tokens are due");
 
-        _released = _released.add(unreleased);
+        _released = _released + unreleased;
 
         FXS.transfer(_beneficiary, unreleased);
 
@@ -165,7 +163,7 @@ contract TokenVesting {
         uint256 balance = FXS.balanceOf(address(this));
 
         uint256 unreleased = _releasableAmount();
-        uint256 refund = balance.sub(unreleased);
+        uint256 refund = balance - unreleased;
 
         _revoked = true;
 
@@ -188,7 +186,7 @@ contract TokenVesting {
      * @dev Calculates the amount that has already vested but hasn't been released yet.
      */
     function _releasableAmount() private view returns (uint256) {
-        return _vestedAmount().sub(_released);
+        return _vestedAmount() - _released;
     }
 
     /**
@@ -196,13 +194,13 @@ contract TokenVesting {
      */
     function _vestedAmount() private view returns (uint256) {
         uint256 currentBalance = FXS.balanceOf(address(this));
-        uint256 totalBalance = currentBalance.add(_released);
+        uint256 totalBalance = currentBalance + _released;
         if (block.timestamp < _cliff) {
             return 0;
-        } else if (block.timestamp >= _start.add(_duration) || _revoked) {
+        } else if (block.timestamp >= _start + _duration || _revoked) {
             return totalBalance;
         } else {
-            return totalBalance.mul(block.timestamp.sub(_start)).div(_duration);
+            return totalBalance * block.timestamp - _start / _duration;
         }
     }
 
