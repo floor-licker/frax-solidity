@@ -21,7 +21,6 @@ pragma solidity >=0.8.0;
 // Sam Kazemian: https://github.com/samkazemian
 // Amirnader Aghayeghazvini: https://github.com/amirnader-ghazvini
 
-import "../../Math/SafeMath.sol";
 import "../../FXS/IFxs.sol";
 import "../../Frax/IFrax.sol";
 import "../../Frax/IFraxAMOMinter.sol";
@@ -36,7 +35,6 @@ import "./aave/IAaveIncentivesControllerPartial.sol";
 import "./aave/IProtocolDataProvider.sol";
 
 contract AaveAMO_V2 is Owned {
-    using SafeMath for uint256;
     // SafeMath automatically included in Solidity >= 8.0.0
 
     /* ========== STATE VARIABLES ========== */
@@ -134,7 +132,7 @@ contract AaveAMO_V2 is Owned {
     /// @return collat_val_e18 Frax collateral valume 
     function dollarBalances() public view returns (uint256 frax_val_e18, uint256 collat_val_e18) {
         frax_val_e18 = showAllocations()[2];
-        collat_val_e18 = (frax_val_e18).mul(FRAX.global_collateral_ratio()).div(PRICE_PRECISION);
+        collat_val_e18 = (frax_val_e18) * FRAX.global_collateral_ratio() / PRICE_PRECISION;
     }
 
     /// @notice For potential Aave incentives in the future
