@@ -4,7 +4,6 @@ import '../../core/interfaces/IUniswapV2FactoryV5.sol';
 import '../../core/interfaces/IFraxswapPair.sol';
 import '../../libraries/FixedPoint.sol';
 
-import '../libraries/SafeMath.sol';
 import '../libraries/FraxswapRouterLibrary.sol';
 import '../libraries/UniswapV2OracleLibrary.sol';
 
@@ -98,7 +97,7 @@ contract ExampleSlidingWindowOracle {
         FixedPoint.uq112x112 memory priceAverage = FixedPoint.uq112x112(
             uint224((priceCumulativeEnd - priceCumulativeStart) / timeElapsed)
         );
-        amountOut = priceAverage.mul(amountIn).decode144();
+        amountOut = priceAverage * amountIn.decode144();
     }
 
     // returns the amount out corresponding to the amount in for a given token using the moving average over the time
