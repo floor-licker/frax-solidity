@@ -24,7 +24,6 @@ pragma experimental ABIEncoderV2;
 // Sam Kazemian: https://github.com/samkazemian
 
 import "../Math/Math.sol";
-import "../Math/SafeMath.sol";
 import "../Curve/IveFXS.sol";
 import "../ERC20/ERC20.sol";
 import '../Uniswap/TransferHelper.sol';
@@ -34,7 +33,6 @@ import "../ERC20/SafeERC20.sol";
 import "./Owned.sol";
 
 contract MicroVeFXSStaker is Owned {
-    using SafeMath for uint256;
     using SafeERC20 for ERC20;
 
     /* ========== STATE VARIABLES ========== */
