@@ -22,7 +22,6 @@ pragma solidity >=0.6.11;
 // Reviewer(s) / Contributor(s)
 
 
-import "../Math/SafeMath.sol";
 import "../ERC20/ERC20.sol";
 import "./AggregatorV3Interface.sol";
 import "../Uniswap_V3/IUniswapV3Pool.sol";
@@ -30,7 +29,6 @@ import "../Uniswap_V3/periphery/libraries/OracleLibrary.sol";
 import "../Staking/Owned.sol";
 
 contract UniV3TWAPOracle is Owned {
-    using SafeMath for uint256;
 
     // Core
     address public timelock_address;
