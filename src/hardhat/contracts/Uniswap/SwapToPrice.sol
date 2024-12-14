@@ -3,14 +3,12 @@ pragma solidity >=0.6.11;
 
 import './Interfaces/IUniswapV2Pair.sol';
 import '../Math/Babylonian.sol';
-import '../Math/SafeMath.sol';
 import './TransferHelper.sol';
 import '../ERC20/IERC20.sol';
 import './Interfaces/IUniswapV2Router01.sol';
 import './UniswapV2Library.sol';
 
 contract SwapToPrice {
-    using SafeMath for uint256;
 
     IUniswapV2Router01 public immutable router;
     address public immutable factory;
@@ -27,18 +25,18 @@ contract SwapToPrice {
         uint256 reserveA,
         uint256 reserveB
     ) pure public returns (bool aToB, uint256 amountIn) {
-        aToB = reserveA.mul(truePriceTokenB) / reserveB < truePriceTokenA;
+        aToB = reserveA * truePriceTokenB / reserveB < truePriceTokenA;
 
-        uint256 invariant = reserveA.mul(reserveB);
+        uint256 invariant = reserveA * reserveB;
 
         uint256 leftSide = Babylonian.sqrt(
-            invariant.mul(aToB ? truePriceTokenA : truePriceTokenB).mul(1000) /
-            uint256(aToB ? truePriceTokenB : truePriceTokenA).mul(997)
+            invariant * aToB ? truePriceTokenA : truePriceTokenB * 1000 /
+            uint256(aToB ? truePriceTokenB : truePriceTokenA) * 997
         );
-        uint256 rightSide = (aToB ? reserveA.mul(1000) : reserveB.mul(1000)) / 997;
+        uint256 rightSide = (aToB ? reserveA * 1000 : reserveB * 1000) / 997;
 
         // compute the amount that must be sent to move the price to the profit-maximizing price
-        amountIn = leftSide.sub(rightSide);
+        amountIn = leftSide - rightSide;
     }
 
     // swaps an amount of either token such that the trade is profit-maximizing, given an external true price
