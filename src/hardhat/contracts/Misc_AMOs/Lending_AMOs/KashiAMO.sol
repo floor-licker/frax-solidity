@@ -19,7 +19,6 @@ pragma solidity ^0.8.12;
 // Reviewer(s) / Contributor(s)
 
 
-import "../../Math/SafeMath.sol";
 import "../../ERC20/IERC20.sol";
 import "../../Staking/Owned.sol";
 import "../../Frax/IFraxAMOMinter.sol";
