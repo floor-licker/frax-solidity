@@ -34,7 +34,6 @@ pragma experimental ABIEncoderV2;
 // https://raw.githubusercontent.com/Synthetixio/synthetix/develop/contracts/StakingRewards.sol
 
 import "../Math/Math.sol";
-import "../Math/SafeMath.sol";
 import "../Curve/IveFXS.sol";
 import "../Curve/IFraxGaugeController.sol";
 import "../Curve/IFraxGaugeFXSRewardsDistributor.sol";
@@ -49,7 +48,6 @@ import "../Utils/ReentrancyGuard.sol";
 import "./Owned.sol";
 
 contract FraxUniV3Farm_Volatile is Owned, ReentrancyGuard {
-    using SafeMath for uint256;
     using SafeERC20 for ERC20;
 
     /* ========== STATE VARIABLES ========== */
@@ -194,11 +192,11 @@ contract FraxUniV3Farm_Volatile is Owned, ReentrancyGuard {
         ideal_tick = _uni_ideal_tick;
 
         // Manual reward rate
-        reward_rate_manual = 0; //(uint256(365e17)).div(365 * 86400); // 0.1 FXS per day
+        reward_rate_manual = 0; //(uint256(365e17)) / 365 * 86400; // 0.1 FXS per day
 
         // Initialize
         lastUpdateTime = block.timestamp;
-        periodFinish = block.timestamp.add(rewardsDuration);
+        periodFinish = block.timestamp + rewardsDuration;
         if (address(gauge_controller) != address(0)){
             sync_gauge_weight(true);
         }
@@ -230,7 +228,7 @@ contract FraxUniV3Farm_Volatile is Owned, ReentrancyGuard {
     function lockMultiplier(uint256 secs) public view returns (uint256) {
         uint256 lock_multiplier =
             uint256(MULTIPLIER_PRECISION).add(
-                secs.mul(lock_max_multiplier.sub(MULTIPLIER_PRECISION)).div(
+                secs * lock_max_multiplier - MULTIPLIER_PRECISION.div(
                     lock_time_for_max_multiplier
                 )
             );
@@ -248,10 +246,10 @@ contract FraxUniV3Farm_Volatile is Owned, ReentrancyGuard {
                 uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(thisNFT.tick_lower);
                 uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(thisNFT.tick_upper);
                 if (frax_is_token0){
-                    frax_tally = frax_tally.add(LiquidityAmounts.getAmount0ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, uint128(thisNFT.liquidity)));
+                    frax_tally = frax_tally + LiquidityAmounts.getAmount0ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, uint128(thisNFT.liquidity));
                 }
                 else {
-                    frax_tally = frax_tally.add(LiquidityAmounts.getAmount1ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, uint128(thisNFT.liquidity)));
+                    frax_tally = frax_tally + LiquidityAmounts.getAmount1ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, uint128(thisNFT.liquidity));
                 }
             }
         }
@@ -259,11 +257,11 @@ contract FraxUniV3Farm_Volatile is Owned, ReentrancyGuard {
         // In order to avoid excessive gas calculations and the input tokens ratios. 50% FRAX is assumed
         // If this were Uni V2, it would be akin to reserve0 & reserve1 math
         // There may be a more accurate way to calculate the above...
-        return frax_tally.div(2); 
+        return frax_tally / 2; 
     }
 
     function minVeFXSForMaxBoost(address account) public view returns (uint256) {
-        return (userStakedFrax(account)).mul(vefxs_per_frax_for_max_boost).div(MULTIPLIER_PRECISION);
+        return (userStakedFrax(account)) * vefxs_per_frax_for_max_boost / MULTIPLIER_PRECISION;
     }
 
     function veFXSMultiplier(address account) public view returns (uint256) {
@@ -271,9 +269,9 @@ contract FraxUniV3Farm_Volatile is Owned, ReentrancyGuard {
         // of their locked LP tokens
         uint256 veFXS_needed_for_max_boost = minVeFXSForMaxBoost(account);
         if (veFXS_needed_for_max_boost > 0){ 
-            uint256 user_vefxs_fraction = (veFXS.balanceOf(account)).mul(MULTIPLIER_PRECISION).div(veFXS_needed_for_max_boost);
+            uint256 user_vefxs_fraction = (veFXS.balanceOf(account)) * MULTIPLIER_PRECISION / veFXS_needed_for_max_boost;
             
-            uint256 vefxs_multiplier = ((user_vefxs_fraction).mul(vefxs_max_multiplier)).div(MULTIPLIER_PRECISION);
+            uint256 vefxs_multiplier = ((user_vefxs_fraction) * vefxs_max_multiplier) / MULTIPLIER_PRECISION;
 
             // Cap the boost to the vefxs_max_multiplier
             if (vefxs_multiplier > vefxs_max_multiplier) vefxs_multiplier = vefxs_max_multiplier;
@@ -348,7 +346,7 @@ contract FraxUniV3Farm_Volatile is Owned, ReentrancyGuard {
             midpoint_vefxs_multiplier = new_vefxs_multiplier;
         }
         else {
-            midpoint_vefxs_multiplier = ((new_vefxs_multiplier).add(_vefxsMultiplierStored[account])).div(2);
+            midpoint_vefxs_multiplier = ((new_vefxs_multiplier) + _vefxsMultiplierStored[account]) / 2;
         }
 
         // Loop through the locked stakes, first by getting the liquidity * lock_multiplier portion
@@ -363,8 +361,8 @@ contract FraxUniV3Farm_Volatile is Owned, ReentrancyGuard {
             }
 
             uint256 liquidity = thisNFT.liquidity;
-            uint256 combined_boosted_amount = liquidity.mul(lock_multiplier.add(midpoint_vefxs_multiplier)).div(MULTIPLIER_PRECISION);
-            new_combined_weight = new_combined_weight.add(combined_boosted_amount);
+            uint256 combined_boosted_amount = liquidity * lock_multiplier + midpoint_vefxs_multiplier / MULTIPLIER_PRECISION;
+            new_combined_weight = new_combined_weight + combined_boosted_amount;
         }
     }
 
@@ -379,10 +377,10 @@ contract FraxUniV3Farm_Volatile is Owned, ReentrancyGuard {
             return (
                 rewardPerTokenStored0.add(
                     lastTimeRewardApplicable()
-                        .sub(lastUpdateTime)
-                        .mul(rewardRate0())
-                        .mul(MULTIPLIER_PRECISION)
-                        .div(_total_combined_weight)
+                         - lastUpdateTime
+                         * rewardRate0()
+                         * MULTIPLIER_PRECISION
+                         / _total_combined_weight
                 )
             );
         }
@@ -392,15 +390,15 @@ contract FraxUniV3Farm_Volatile is Owned, ReentrancyGuard {
         uint256 earned_reward_0 = rewardPerToken();
         return (
             _combined_weights[account]
-                .mul(earned_reward_0.sub(userRewardPerTokenPaid0[account]))
-                .div(1e18)
-                .add(rewards0[account])
+                 * earned_reward_0 - userRewardPerTokenPaid0[account]
+                 / 1e18
+                 + rewards0[account]
         );
     }
 
     function rewardRate0() public view returns (uint256 rwd_rate) {
         if (address(gauge_controller) != address(0)) {
-            rwd_rate = (gauge_controller.global_emission_rate()).mul(last_gauge_relative_weight).div(1e18);
+            rwd_rate = (gauge_controller.global_emission_rate()) * last_gauge_relative_weight / 1e18;
         }
         else {
             rwd_rate = reward_rate_manual;
@@ -408,7 +406,7 @@ contract FraxUniV3Farm_Volatile is Owned, ReentrancyGuard {
     }
 
     function getRewardForDuration() external view returns (uint256) {
-        return rewardRate0().mul(rewardsDuration);
+        return rewardRate0() * rewardsDuration;
     }
 
     // Needed to indicate that this contract is ERC721 compatible
@@ -446,13 +444,13 @@ contract FraxUniV3Farm_Volatile is Owned, ReentrancyGuard {
 
             // Update the user's and the global combined weights
             if (new_combined_weight >= old_combined_weight) {
-                uint256 weight_diff = new_combined_weight.sub(old_combined_weight);
-                _total_combined_weight = _total_combined_weight.add(weight_diff);
-                _combined_weights[account] = old_combined_weight.add(weight_diff);
+                uint256 weight_diff = new_combined_weight - old_combined_weight;
+                _total_combined_weight = _total_combined_weight + weight_diff;
+                _combined_weights[account] = old_combined_weight + weight_diff;
             } else {
-                uint256 weight_diff = old_combined_weight.sub(new_combined_weight);
-                _total_combined_weight = _total_combined_weight.sub(weight_diff);
-                _combined_weights[account] = old_combined_weight.sub(weight_diff);
+                uint256 weight_diff = old_combined_weight - new_combined_weight;
+                _total_combined_weight = _total_combined_weight - weight_diff;
+                _combined_weights[account] = old_combined_weight - weight_diff;
             }
 
         }
@@ -506,7 +504,7 @@ contract FraxUniV3Farm_Volatile is Owned, ReentrancyGuard {
                     token_id,
                     liquidity,
                     start_timestamp,
-                    start_timestamp.add(secs),
+                    start_timestamp + secs,
                     lock_multiplier,
                     tick_lower,
                     tick_upper
@@ -518,8 +516,8 @@ contract FraxUniV3Farm_Volatile is Owned, ReentrancyGuard {
         stakingTokenNFT.safeTransferFrom(source_address, address(this), token_id);
 
         // Update liquidities
-        _total_liquidity_locked = _total_liquidity_locked.add(liquidity);
-        _locked_liquidity[staker_address] = _locked_liquidity[staker_address].add(liquidity);
+        _total_liquidity_locked = _total_liquidity_locked + liquidity;
+        _locked_liquidity[staker_address] = _locked_liquidity[staker_address] + liquidity;
 
         // Need to call again to make sure everything is correct
         _updateRewardAndBalance(staker_address, true);
@@ -573,8 +571,8 @@ contract FraxUniV3Farm_Volatile is Owned, ReentrancyGuard {
 
         if (theLiquidity > 0) {
             // Update liquidities
-            _total_liquidity_locked = _total_liquidity_locked.sub(theLiquidity);
-            _locked_liquidity[staker_address] = _locked_liquidity[staker_address].sub(theLiquidity);
+            _total_liquidity_locked = _total_liquidity_locked - theLiquidity;
+            _locked_liquidity[staker_address] = _locked_liquidity[staker_address] - theLiquidity;
 
             // Remove the stake from the array
             delete lockedNFTs[staker_address][theArrayIndex];
@@ -620,8 +618,8 @@ contract FraxUniV3Farm_Volatile is Owned, ReentrancyGuard {
                         type(uint128).max
                     );
                     (uint256 tok0_amt, uint256 tok1_amt) = stakingTokenNFT.collect(collect_params);
-                    accumulated_token0 = accumulated_token0.add(tok0_amt);
-                    accumulated_token1 = accumulated_token1.add(tok1_amt);
+                    accumulated_token0 = accumulated_token0 + tok0_amt;
+                    accumulated_token1 = accumulated_token1 + tok1_amt;
                 }
             }
 
@@ -642,11 +640,11 @@ contract FraxUniV3Farm_Volatile is Owned, ReentrancyGuard {
         // This keeps the reward rate in the right range, preventing overflows due to
         // very high values of rewardRate in the earned and rewardsPerToken functions;
         // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
-        uint256 num_periods_elapsed = uint256(block.timestamp.sub(periodFinish)) / rewardsDuration; // Floor division to the nearest period
+        uint256 num_periods_elapsed = uint256(block.timestamp - periodFinish) / rewardsDuration; // Floor division to the nearest period
         uint256 balance0 = rewardsToken0.balanceOf(address(this));
-        require(rewardRate0().mul(rewardsDuration).mul(num_periods_elapsed + 1) <= balance0, "Not enough FXS available");
+        require(rewardRate0() * rewardsDuration * num_periods_elapsed + 1 <= balance0, "Not enough FXS available");
 
-        periodFinish = periodFinish.add((num_periods_elapsed.add(1)).mul(rewardsDuration));
+        periodFinish = periodFinish + (num_periods_elapsed.add(1) * rewardsDuration);
 
         uint256 reward_per_token_0 = rewardPerToken();
         rewardPerTokenStored0 = reward_per_token_0;
