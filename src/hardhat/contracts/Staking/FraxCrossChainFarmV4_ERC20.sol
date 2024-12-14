@@ -33,7 +33,6 @@ pragma solidity >=0.8.0;
 // https://raw.githubusercontent.com/Synthetixio/synthetix/develop/contracts/StakingRewards.sol
 
 import "../Math/Math.sol";
-import "../Math/SafeMath.sol";
 import "../Curve/IveFXS.sol";
 import "../Curve/FraxCrossChainRewarder.sol";
 import "../ERC20/__CROSSCHAIN/IanyFXS.sol";
@@ -81,7 +80,6 @@ import "./Owned.sol";
 /// @title FraxCrossChainFarmV4_ERC20
 /// @notice Used as a farm, usually fed by rewards dropped in from various sources
 contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
-    using SafeMath for uint256;
     using SafeERC20 for ERC20;
 
     /* ========== STATE VARIABLES ========== */
@@ -404,7 +402,7 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
 
         // For initialization
         lastUpdateTime = block.timestamp;
-        periodFinish = block.timestamp.add(rewardsDuration);
+        periodFinish = block.timestamp + rewardsDuration;
     }
 
     /* ========== VIEWS ========== */
@@ -549,7 +547,7 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
         //     else {
         //         total_frax_reserves = _balanceResults[1];
         //     }
-        //     frax_per_lp_token = total_frax_reserves.mul(1e18).div(pool.totalSupply());
+        //     frax_per_lp_token = total_frax_reserves * 1e18 / pool.totalSupply();
         // }
 
     
@@ -568,7 +566,7 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
         //     else {
         //         total_frax_reserves = stakingToken.balances(2);
         //     }
-        //     frax_per_lp_token = total_frax_reserves.mul(1e18).div(stakingToken.totalSupply());
+        //     frax_per_lp_token = total_frax_reserves * 1e18 / stakingToken.totalSupply();
         // }
 
         // Curve 3pool metapool (FRAXBP/Stable)
@@ -611,7 +609,7 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
         //     uint256 total_frax_reserves;
         //     (, IFeederPool.BassetData memory vaultData) = (stakingToken.getBasset(fraxAddress));
         //     total_frax_reserves = uint256(vaultData.vaultBalance);
-        //     frax_per_lp_token = total_frax_reserves.mul(1e18).div(stakingToken.totalSupply());
+        //     frax_per_lp_token = total_frax_reserves * 1e18 / stakingToken.totalSupply();
         // }
 
         // Saddle L2D4
@@ -619,7 +617,7 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
         // {
         //     ISaddlePermissionlessSwap ISPS = ISaddlePermissionlessSwap(0xF2839E0b30B5e96083085F498b14bbc12530b734);
         //     uint256 total_frax = ISPS.getTokenBalance(ISPS.getTokenIndex(fraxAddress));
-        //     frax_per_lp_token = total_frax.mul(1e18).div(stakingToken.totalSupply());
+        //     frax_per_lp_token = total_frax * 1e18 / stakingToken.totalSupply();
         // }
 
         // Most Saddles / Snowball S4D
@@ -627,7 +625,7 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
         // {
         //     ISwapFlashLoan ISFL = ISwapFlashLoan(0xfeEa4D1BacB0519E8f952460A70719944fe56Ee0);
         //     uint256 total_frax = ISFL.getTokenBalance(ISFL.getTokenIndex(fraxAddress));
-        //     frax_per_lp_token = total_frax.mul(1e18).div(stakingToken.totalSupply());
+        //     frax_per_lp_token = total_frax * 1e18 / stakingToken.totalSupply();
         // }
 
         // Sentiment LFrax
@@ -644,7 +642,7 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
         //     if (frax_is_token0) total_frax_reserves = reserve0;
         //     else total_frax_reserves = reserve1;
 
-        //     frax_per_lp_token = total_frax_reserves.mul(1e18).div(stakingToken.totalSupply());
+        //     frax_per_lp_token = total_frax_reserves * 1e18 / stakingToken.totalSupply();
         // }
 
 
@@ -656,14 +654,14 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
     /// @param account Address of the user
     /// @return uint256 Amount of Frax
     function userStakedFrax(address account) public view returns (uint256) {
-        return (fraxPerLPToken()).mul(_locked_liquidity[account]).div(1e18);
+        return (fraxPerLPToken()) * _locked_liquidity[account] / 1e18;
     }
 
     /// @notice Minimum amount of veFXS a user needs to have to get the max veFXS boost, given their current position
     /// @param account Address of the user
     /// @return uint256 Amount of veFXS needed
     function minVeFXSForMaxBoost(address account) public view returns (uint256) {
-        return (userStakedFrax(account)).mul(vefxs_per_frax_for_max_boost).div(MULTIPLIER_PRECISION);
+        return (userStakedFrax(account)) * vefxs_per_frax_for_max_boost / MULTIPLIER_PRECISION;
     }
 
     /// @notice The weight boost multiplier from veFXS
@@ -675,9 +673,9 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
             // of their locked LP tokens
             uint256 veFXS_needed_for_max_boost = minVeFXSForMaxBoost(account);
             if (veFXS_needed_for_max_boost > 0){ 
-                uint256 user_vefxs_fraction = (veFXS.balanceOf(account)).mul(MULTIPLIER_PRECISION).div(veFXS_needed_for_max_boost);
+                uint256 user_vefxs_fraction = (veFXS.balanceOf(account)) * MULTIPLIER_PRECISION / veFXS_needed_for_max_boost;
                 
-                uint256 vefxs_multiplier = ((user_vefxs_fraction).mul(vefxs_max_multiplier)).div(MULTIPLIER_PRECISION);
+                uint256 vefxs_multiplier = ((user_vefxs_fraction) * vefxs_max_multiplier) / MULTIPLIER_PRECISION;
 
                 // Cap the boost to the vefxs_max_multiplier
                 if (vefxs_multiplier > vefxs_max_multiplier) vefxs_multiplier = vefxs_max_multiplier;
@@ -805,7 +803,7 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
             // Loop through the reward tokens
             for (uint256 i = 0; i < rewardTokens.length; i++) { 
                 _rtnRewardsPerTokenStored[i] = rewardsPerTokenStored[i].add(
-                    lastTimeRewardApplicable().sub(lastUpdateTime).mul(rewardRates[i]).mul(1e18).div(_total_combined_weight)
+                    lastTimeRewardApplicable() - lastUpdateTime * rewardRates[i] * 1e18 / _total_combined_weight
                 );
             }
         }
@@ -827,7 +825,7 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
 
             // Loop through the reward tokens
             for (uint256 i = 0; i < rewardTokens.length; i++) { 
-                _rtnEarned[i] = (_combined_weights[account].mul(_rtnRewardsPerToken[i].sub(userRewardsPerTokenPaid[account][i]))).div(1e18).add(rewards[account][i]);
+                _rtnEarned[i] = (_combined_weights[account] * _rtnRewardsPerToken[i] - userRewardsPerTokenPaid[account][i]) / 1e18 + rewards[account][i];
             }
         }
 
@@ -838,7 +836,7 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
     function getRewardForDuration() external view returns (uint256[] memory _rtnRewardForDuration) {
         _rtnRewardForDuration = new uint256[](rewardTokens.length);
         for (uint256 i = 0; i < rewardTokens.length; i++) { 
-            _rtnRewardForDuration[i] = rewardRates[i].mul(rewardsDuration);
+            _rtnRewardForDuration[i] = rewardRates[i] * rewardsDuration;
         }
     }
 
@@ -899,13 +897,13 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
 
             // Update the user's and the global combined weights
             if (new_combined_weight >= old_combined_weight) {
-                uint256 weight_diff = new_combined_weight.sub(old_combined_weight);
-                _total_combined_weight = _total_combined_weight.add(weight_diff);
-                _combined_weights[account] = old_combined_weight.add(weight_diff);
+                uint256 weight_diff = new_combined_weight - old_combined_weight;
+                _total_combined_weight = _total_combined_weight + weight_diff;
+                _combined_weights[account] = old_combined_weight + weight_diff;
             } else {
-                uint256 weight_diff = old_combined_weight.sub(new_combined_weight);
-                _total_combined_weight = _total_combined_weight.sub(weight_diff);
-                _combined_weights[account] = old_combined_weight.sub(weight_diff);
+                uint256 weight_diff = old_combined_weight - new_combined_weight;
+                _total_combined_weight = _total_combined_weight - weight_diff;
+                _combined_weights[account] = old_combined_weight - weight_diff;
             }
 
         }
@@ -1060,7 +1058,7 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
             kek_id,
             start_timestamp,
             liquidity,
-            start_timestamp.add(secs),
+            start_timestamp + secs,
             lock_multiplier
         ));
 
@@ -1068,8 +1066,8 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
         TransferHelper.safeTransferFrom(address(stakingToken), source_address, address(this), liquidity);
 
         // Update liquidities
-        _total_liquidity_locked = _total_liquidity_locked.add(liquidity);
-        _locked_liquidity[staker_address] = _locked_liquidity[staker_address].add(liquidity);
+        _total_liquidity_locked = _total_liquidity_locked + liquidity;
+        _locked_liquidity[staker_address] = _locked_liquidity[staker_address] + liquidity;
 
         // Need to call to update the combined weights
         _updateRewardAndBalance(staker_address, false, true);
@@ -1110,8 +1108,8 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
 
         if (liquidity > 0) {
             // Update liquidities
-            _total_liquidity_locked = _total_liquidity_locked.sub(liquidity);
-            _locked_liquidity[staker_address] = _locked_liquidity[staker_address].sub(liquidity);
+            _total_liquidity_locked = _total_liquidity_locked - liquidity;
+            _locked_liquidity[staker_address] = _locked_liquidity[staker_address] - liquidity;
 
             // Remove the stake from the array
             delete lockedStakes[staker_address][theArrayIndex];
@@ -1165,7 +1163,7 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
     /// @notice Quasi-notifyRewardAmount() logic
     function syncRewards() internal {
         // Bring in rewards, if applicable
-        if ((block.timestamp).sub(lastRewardPull) >= rewardsDuration) {
+        if ((block.timestamp) - lastRewardPull >= rewardsDuration) {
             if (address(rewarder) != address(0)) {
                 rewarder.distributeReward();
             }
@@ -1192,7 +1190,7 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
         }
 
         // Loop through all the tokens
-        uint256 _eligibleElapsedTime = Math.min((block.timestamp).sub(lastUpdateTime), rewardsDuration); // Cut off at the end of the week
+        uint256 _eligibleElapsedTime = Math.min((block.timestamp) - lastUpdateTime, rewardsDuration); // Cut off at the end of the week
         uint256[] memory _reward = rewardPerToken();
         for (uint256 i = 0; i < rewardTokens.length; i++) {
             // Get the current reward token balances
@@ -1200,7 +1198,7 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
 
             // Update the owed amounts based off the old reward rates
             // Anything over a week is zeroed (see above)
-            ttlRewsOwed[i] += rewardRates[i].mul(_eligibleElapsedTime);
+            ttlRewsOwed[i] += rewardRates[i] * _eligibleElapsedTime;
 
             // Update the stored amounts too
             rewardsPerTokenStored[i] = _reward[i];
@@ -1208,7 +1206,7 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
             // Set the reward rates based on the free amount of tokens
             {
                 // Don't count unpaid rewards as free
-                uint256 _unpaid = ttlRewsOwed[i].sub(ttlRewsPaid[i]);
+                uint256 _unpaid = ttlRewsOwed[i] - ttlRewsPaid[i];
 
                 // Handle reward token0
                 if (_currBal <= _unpaid){
@@ -1216,8 +1214,8 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
                     rewardRates[i] = 0;
                 }
                 else {
-                    uint256 _free = _currBal.sub(_unpaid);
-                    rewardRates[i] = (_free).div(rewardsDuration);
+                    uint256 _free = _currBal - _unpaid;
+                    rewardRates[i] = (_free) / rewardsDuration;
                 }
 
             }
@@ -1236,7 +1234,7 @@ contract FraxCrossChainFarmV4_ERC20 is Owned, ReentrancyGuard {
 
         // Rolling 7 days rewards period
         lastUpdateTime = block.timestamp;
-        periodFinish = (block.timestamp).add(rewardsDuration);
+        periodFinish = (block.timestamp) + rewardsDuration;
     }
 
     /* ========== RESTRICTED FUNCTIONS ========== */
