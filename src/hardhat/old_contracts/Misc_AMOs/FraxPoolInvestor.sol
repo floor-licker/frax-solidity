@@ -13,7 +13,6 @@ pragma solidity >=0.6.11;
 // ====================================================================
 
 
-import "../Math/SafeMath.sol";
 import "../FXS/FXS.sol";
 import "../Frax/Frax.sol";
 import "../ERC20/ERC20.sol";
@@ -22,7 +21,6 @@ import "../Governance/AccessControl.sol";
 import "../Frax/Pools/FraxPoolvAMM.sol";
 
 // contract FraxPoolInvestor is AccessControl {
-//     using SafeMath for uint256;
 
 //     /* ========== STATE VARIABLES ========== */
 
@@ -69,7 +67,7 @@ import "../Frax/Pools/FraxPoolvAMM.sol";
 //         collateral_token = ERC20(_collateral_address);
 //         timelock_address = _timelock_address;
 //         owner_address = _creator_address;
-//         missing_decimals = uint(18).sub(collateral_token.decimals());
+//         missing_decimals = uint(18) - collateral_token.decimals();
 
 //         _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
 //         grantRole(WITHDRAWAL_PAUSER, timelock_address);
