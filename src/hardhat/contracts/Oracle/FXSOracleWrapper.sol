@@ -23,12 +23,10 @@ pragma solidity >=0.6.11;
 // Travis Moore: https://github.com/FortisFortuna
 // Sam Kazemian: https://github.com/samkazemian
 
-import "../Math/SafeMath.sol";
 import "./AggregatorV3Interface.sol";
 import "../Staking/Owned.sol";
 
 contract FXSOracleWrapper is Owned {
-    using SafeMath for uint256;
 
     AggregatorV3Interface private priceFeedFXSUSD;
     AggregatorV3Interface private priceFeedETHUSD;
@@ -69,14 +67,14 @@ contract FXSOracleWrapper is Owned {
         (uint80 roundID, int price, , uint256 updatedAt, uint80 answeredInRound) = priceFeedFXSUSD.latestRoundData();
         require(price >= 0 && updatedAt!= 0 && answeredInRound >= roundID, "Invalid chainlink price");
 
-        return uint256(price).mul(PRICE_PRECISION).div(10 ** chainlink_fxs_usd_decimals);
+        return uint256(price) * PRICE_PRECISION / 10 ** chainlink_fxs_usd_decimals;
     }
 
     function getETHPrice() public view returns (uint256) {
         (uint80 roundID, int price, , uint256 updatedAt, uint80 answeredInRound) = priceFeedETHUSD.latestRoundData();
         require(price >= 0 && updatedAt!= 0 && answeredInRound >= roundID, "Invalid chainlink price");
         
-        return uint256(price).mul(PRICE_PRECISION).div(10 ** chainlink_eth_usd_decimals);
+        return uint256(price) * PRICE_PRECISION / 10 ** chainlink_eth_usd_decimals;
     }
 
     // Override the logic of the FXS-WETH Uniswap TWAP Oracle
@@ -88,7 +86,7 @@ contract FXSOracleWrapper is Owned {
         require(amountIn == 1e6, "must call with 1e6");
 
         // needs to return it inverted
-        return getETHPrice().mul(PRICE_PRECISION).div(getFXSPrice());
+        return getETHPrice() * PRICE_PRECISION / getFXSPrice();
     }
 
     /* ========== RESTRICTED FUNCTIONS ========== */
