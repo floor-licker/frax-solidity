@@ -28,7 +28,6 @@ pragma experimental ABIEncoderV2;
 // https://raw.githubusercontent.com/Synthetixio/synthetix/develop/contracts/StakingRewards.sol
 
 import "../Math/Math.sol";
-import "../Math/SafeMath.sol";
 import "../BEP20/BEP20.sol";
 import "../Impossible/IImpossiblePair.sol";
 import '../Uniswap/TransferHelper.sol';
@@ -39,7 +38,6 @@ import "../Utils/ReentrancyGuard.sol";
 import "./Owned.sol";
 
 contract FraxFarmBSC_Dual_V5 is Owned, ReentrancyGuard {
-    using SafeMath for uint256;
     using SafeBEP20 for BEP20;
 
     /* ========== STATE VARIABLES ========== */
@@ -154,10 +152,10 @@ contract FraxFarmBSC_Dual_V5 is Owned, ReentrancyGuard {
         timelock_address = _timelock_address;
 
         // 10 FXS a day
-        rewardRate0 = (uint256(3650e18)).div(365 * 86400); 
+        rewardRate0 = (uint256(3650e18)) / 365 * 86400; 
 
         // 1 token1 a day
-        rewardRate1 = (uint256(365e18)).div(365 * 86400); 
+        rewardRate1 = (uint256(365e18)) / 365 * 86400; 
 
         // Other booleans
         migrationsOn = false;
@@ -178,8 +176,8 @@ contract FraxFarmBSC_Dual_V5 is Owned, ReentrancyGuard {
         uint256 lock_multiplier =
             uint256(MULTIPLIER_PRECISION).add(
                 secs
-                    .mul(lock_max_multiplier.sub(MULTIPLIER_PRECISION))
-                    .div(lock_time_for_max_multiplier)
+                     * lock_max_multiplier - MULTIPLIER_PRECISION
+                     / lock_time_for_max_multiplier
             );
         if (lock_multiplier > lock_max_multiplier) lock_multiplier = lock_max_multiplier;
         return lock_multiplier;
@@ -225,8 +223,8 @@ contract FraxFarmBSC_Dual_V5 is Owned, ReentrancyGuard {
             }
 
             uint256 liquidity = thisStake.liquidity;
-            uint256 combined_boosted_amount = liquidity.mul(lock_multiplier).div(MULTIPLIER_PRECISION);
-            new_combined_weight = new_combined_weight.add(combined_boosted_amount);
+            uint256 combined_boosted_amount = liquidity * lock_multiplier / MULTIPLIER_PRECISION;
+            new_combined_weight = new_combined_weight + combined_boosted_amount;
         }
     }
 
@@ -237,10 +235,10 @@ contract FraxFarmBSC_Dual_V5 is Owned, ReentrancyGuard {
         else {
             return (
                 rewardPerTokenStored0.add(
-                    lastTimeRewardApplicable().sub(lastUpdateTime).mul(rewardRate0).mul(1e18).div(_total_combined_weight)
+                    lastTimeRewardApplicable() - lastUpdateTime * rewardRate0 * 1e18 / _total_combined_weight
                 ),
                 rewardPerTokenStored1.add(
-                    lastTimeRewardApplicable().sub(lastUpdateTime).mul(rewardRate1).mul(1e18).div(_total_combined_weight)
+                    lastTimeRewardApplicable() - lastUpdateTime * rewardRate1 * 1e18 / _total_combined_weight
                 )
             );
         }
@@ -252,15 +250,15 @@ contract FraxFarmBSC_Dual_V5 is Owned, ReentrancyGuard {
             return (0, 0);
         }
         return (
-            (_combined_weights[account].mul(reward0.sub(userRewardPerTokenPaid0[account]))).div(1e18).add(rewards0[account]),
-            (_combined_weights[account].mul(reward1.sub(userRewardPerTokenPaid1[account]))).div(1e18).add(rewards1[account])
+            (_combined_weights[account] * reward0 - userRewardPerTokenPaid0[account]) / 1e18 + rewards0[account],
+            (_combined_weights[account] * reward1 - userRewardPerTokenPaid1[account]) / 1e18 + rewards1[account]
         );
     }
 
     function getRewardForDuration() external view returns (uint256, uint256) {
         return (
-            rewardRate0.mul(rewardsDuration),
-            rewardRate1.mul(rewardsDuration)
+            rewardRate0 * rewardsDuration,
+            rewardRate1 * rewardsDuration
         );
     }
 
@@ -284,13 +282,13 @@ contract FraxFarmBSC_Dual_V5 is Owned, ReentrancyGuard {
 
             // Update the user's and the global combined weights
             if (new_combined_weight >= old_combined_weight) {
-                uint256 weight_diff = new_combined_weight.sub(old_combined_weight);
-                _total_combined_weight = _total_combined_weight.add(weight_diff);
-                _combined_weights[account] = old_combined_weight.add(weight_diff);
+                uint256 weight_diff = new_combined_weight - old_combined_weight;
+                _total_combined_weight = _total_combined_weight + weight_diff;
+                _combined_weights[account] = old_combined_weight + weight_diff;
             } else {
-                uint256 weight_diff = old_combined_weight.sub(new_combined_weight);
-                _total_combined_weight = _total_combined_weight.sub(weight_diff);
-                _combined_weights[account] = old_combined_weight.sub(weight_diff);
+                uint256 weight_diff = old_combined_weight - new_combined_weight;
+                _total_combined_weight = _total_combined_weight - weight_diff;
+                _combined_weights[account] = old_combined_weight - weight_diff;
             }
 
         }
@@ -345,7 +343,7 @@ contract FraxFarmBSC_Dual_V5 is Owned, ReentrancyGuard {
             kek_id,
             start_timestamp,
             liquidity,
-            start_timestamp.add(secs),
+            start_timestamp + secs,
             lock_multiplier
         ));
 
@@ -353,8 +351,8 @@ contract FraxFarmBSC_Dual_V5 is Owned, ReentrancyGuard {
         TransferHelper.safeTransferFrom(address(stakingToken), source_address, address(this), liquidity);
 
         // Update liquidities
-        _total_liquidity_locked = _total_liquidity_locked.add(liquidity);
-        _locked_liquidity[staker_address] = _locked_liquidity[staker_address].add(liquidity);
+        _total_liquidity_locked = _total_liquidity_locked + liquidity;
+        _locked_liquidity[staker_address] = _locked_liquidity[staker_address] + liquidity;
 
         // Need to call to update the combined weights
         _updateRewardAndBalance(staker_address, true);
@@ -391,8 +389,8 @@ contract FraxFarmBSC_Dual_V5 is Owned, ReentrancyGuard {
 
         if (liquidity > 0) {
             // Update liquidities
-            _total_liquidity_locked = _total_liquidity_locked.sub(liquidity);
-            _locked_liquidity[staker_address] = _locked_liquidity[staker_address].sub(liquidity);
+            _total_liquidity_locked = _total_liquidity_locked - liquidity;
+            _locked_liquidity[staker_address] = _locked_liquidity[staker_address] - liquidity;
 
             // Remove the stake from the array
             delete lockedStakes[staker_address][theArrayIndex];
@@ -444,20 +442,20 @@ contract FraxFarmBSC_Dual_V5 is Owned, ReentrancyGuard {
         // This keeps the reward rate in the right range, preventing overflows due to
         // very high values of rewardRate in the earned and rewardsPerToken functions;
         // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
-        uint256 num_periods_elapsed = uint256(block.timestamp.sub(periodFinish)) / rewardsDuration; // Floor division to the nearest period
+        uint256 num_periods_elapsed = uint256(block.timestamp - periodFinish) / rewardsDuration; // Floor division to the nearest period
         uint balance0 = rewardsToken0.balanceOf(address(this));
         uint balance1 = rewardsToken1.balanceOf(address(this));
-        require(rewardRate0.mul(rewardsDuration).mul(num_periods_elapsed + 1) <= balance0, "Not enough FXS available");
+        require(rewardRate0 * rewardsDuration * num_periods_elapsed + 1 <= balance0, "Not enough FXS available");
         
         if (token1_rewards_on){
-            require(rewardRate1.mul(rewardsDuration).mul(num_periods_elapsed + 1) <= balance1, "Not enough token1 available for rewards!");
+            require(rewardRate1 * rewardsDuration * num_periods_elapsed + 1 <= balance1, "Not enough token1 available for rewards!");
         }
         
         // uint256 old_lastUpdateTime = lastUpdateTime;
         // uint256 new_lastUpdateTime = block.timestamp;
 
         // lastUpdateTime = periodFinish;
-        periodFinish = periodFinish.add((num_periods_elapsed.add(1)).mul(rewardsDuration));
+        periodFinish = periodFinish + (num_periods_elapsed.add(1) * rewardsDuration);
 
         (uint256 reward0, uint256 reward1) = rewardPerToken();
         rewardPerTokenStored0 = reward0;
@@ -547,7 +545,7 @@ contract FraxFarmBSC_Dual_V5 is Owned, ReentrancyGuard {
 
     function initializeDefault() external onlyByOwnGov {
         lastUpdateTime = block.timestamp;
-        periodFinish = block.timestamp.add(rewardsDuration);
+        periodFinish = block.timestamp + rewardsDuration;
         emit DefaultInitialization();
     }
 
