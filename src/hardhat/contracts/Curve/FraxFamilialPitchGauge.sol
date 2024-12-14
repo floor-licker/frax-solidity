@@ -24,7 +24,6 @@ pragma solidity ^0.8.17;
 */
 
 // import "../Math/Math.sol";
-// import "../Math/SafeMath.sol";
 // import "../ERC20/ERC20.sol";
 // import "../ERC20/SafeERC20.sol";
 import "./IFraxGaugeFXSRewardsDistributor.sol";
@@ -47,7 +46,6 @@ import "./IFraxGaugeControllerV2.sol";
 */
 
 contract FraxFamilialPitchGauge is Owned {//, ReentrancyGuard {
-    // using SafeMath for uint256;
     // using SafeERC20 for ERC20;
 
     // error LatestPeriodNotFinished(uint256,uint256);
