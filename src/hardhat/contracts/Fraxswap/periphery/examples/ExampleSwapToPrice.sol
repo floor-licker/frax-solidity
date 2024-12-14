@@ -7,11 +7,9 @@ import '../..//libraries/TransferHelper.sol';
 import '../libraries/UniswapV2LiquidityMathLibrary.sol';
 import '../interfaces/IERC20.sol';
 import '../interfaces/IUniswapV2Router01V5.sol';
-import '../libraries/SafeMath.sol';
 import '../libraries/FraxswapRouterLibrary.sol';
 
 contract ExampleSwapToPrice {
-    using SafeMath for uint256;
 
     IUniswapV2Router01V5 public immutable router;
     address public immutable factory;
