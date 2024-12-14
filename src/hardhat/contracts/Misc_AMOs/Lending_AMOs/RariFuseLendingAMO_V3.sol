@@ -21,7 +21,6 @@ pragma solidity >=0.8.0;
 // Sam Kazemian: https://github.com/samkazemian
 // Amirnader Aghayeghazvini: https://github.com/amirnader-ghazvini
 
-import "../../Math/SafeMath.sol";
 import "../../Frax/IFrax.sol";
 import "../../Frax/IFraxAMOMinter.sol";
 import "../../ERC20/ERC20.sol";
@@ -31,7 +30,6 @@ import "./rari/ICErc20Delegator.sol";
 import "./rari/IRariComptroller.sol";
 
 contract RariFuseLendingAMO_V3 is Owned {
-    using SafeMath for uint256;
     // SafeMath automatically included in Solidity >= 8.0.0
 
     /* ========== STATE VARIABLES ========== */
@@ -114,17 +112,17 @@ contract RariFuseLendingAMO_V3 is Owned {
             // Make sure the pool is enabled first
             address pool_address = fuse_pools_array[i];
             if (fuse_pools[pool_address]){
-                sum_fuse_pool_tally = sum_fuse_pool_tally.add(fraxInPoolByPoolIdx(i));
+                sum_fuse_pool_tally = sum_fuse_pool_tally + fraxInPoolByPoolIdx(i);
             }
         }
         allocations[1] = sum_fuse_pool_tally;
 
-        allocations[2] = allocations[0].add(allocations[1]); // Total FRAX value
+        allocations[2] = allocations[0] + allocations[1]; // Total FRAX value
     }
 
     function dollarBalances() public view returns (uint256 frax_val_e18, uint256 collat_val_e18) {
         frax_val_e18 = showAllocations()[2];
-        collat_val_e18 = (frax_val_e18).mul(FRAX.global_collateral_ratio()).div(PRICE_PRECISION);
+        collat_val_e18 = (frax_val_e18) * FRAX.global_collateral_ratio() / PRICE_PRECISION;
     }
 
     // Helpful for UIs
@@ -149,7 +147,7 @@ contract RariFuseLendingAMO_V3 is Owned {
     function fraxInPoolByPoolIdx(uint256 pool_idx) public view returns (uint256) {
         ICErc20Delegator delegator = ICErc20Delegator(fuse_pools_array[pool_idx]);
         uint256 cToken_bal = delegator.balanceOf(address(this));
-        return cToken_bal.mul(delegator.exchangeRateStored()).div(1e18);
+        return cToken_bal * delegator.exchangeRateStored() / 1e18;
     }
 
     function fraxInPoolByPoolAddr(address pool_address) public view returns (uint256) {
@@ -189,7 +187,7 @@ contract RariFuseLendingAMO_V3 is Owned {
     function deptToPoolByPoolIdx(uint256 pool_idx) public view returns (uint256) {
         ICErc20Delegator delegator = ICErc20Delegator(fuse_borrow_pools_array[pool_idx]);
         uint256 debt_bal = delegator.borrowBalanceStored(address(this));
-        return debt_bal.mul(delegator.exchangeRateStored()).div(1e18);
+        return debt_bal * delegator.exchangeRateStored() / 1e18;
     }
 
     function debtToPoolByPoolAddr(address pool_address) public view returns (uint256) {
