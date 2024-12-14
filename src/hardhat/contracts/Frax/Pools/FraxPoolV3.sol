@@ -27,7 +27,6 @@ pragma solidity >=0.8.0;
 // Dennis: github.com/denett
 // Hameed
 
-import "../../Math/SafeMath.sol";
 import '../../Uniswap/TransferHelper.sol';
 import "../../Staking/Owned.sol";
 import "../../FXS/IFxs.sol";
@@ -37,7 +36,6 @@ import "../../Frax/IFraxAMOMinter.sol";
 import "../../ERC20/ERC20.sol";
 
 contract FraxPoolV3 is Owned {
-    using SafeMath for uint256;
     // SafeMath automatically included in Solidity >= 8.0.0
 
     /* ========== STATE VARIABLES ========== */
@@ -145,7 +143,7 @@ contract FraxPoolV3 is Owned {
             enabled_collaterals[_collateral_addresses[i]] = false;
 
             // Add in the missing decimals
-            missing_decimals.push(uint256(18).sub(ERC20(_collateral_addresses[i]).decimals()));
+            missing_decimals.push(uint256(18) - ERC20(_collateral_addresses[i].decimals()));
 
             // Add in the collateral symbols
             collateral_symbols.push(ERC20(_collateral_addresses[i]).symbol());
@@ -236,24 +234,24 @@ contract FraxPoolV3 is Owned {
         (uint80 roundID, int price, , uint256 updatedAt, uint80 answeredInRound) = priceFeedFRAXUSD.latestRoundData();
         require(price >= 0 && updatedAt!= 0 && answeredInRound >= roundID, "Invalid chainlink price");
 
-        return uint256(price).mul(PRICE_PRECISION).div(10 ** chainlink_frax_usd_decimals);
+        return uint256(price) * PRICE_PRECISION / 10 ** chainlink_frax_usd_decimals;
     }
 
     function getFXSPrice() public view returns (uint256) {
         (uint80 roundID, int price, , uint256 updatedAt, uint80 answeredInRound) = priceFeedFXSUSD.latestRoundData();
         require(price >= 0 && updatedAt!= 0 && answeredInRound >= roundID, "Invalid chainlink price");
 
-        return uint256(price).mul(PRICE_PRECISION).div(10 ** chainlink_fxs_usd_decimals);
+        return uint256(price) * PRICE_PRECISION / 10 ** chainlink_fxs_usd_decimals;
     }
 
     // Returns the FRAX value in collateral tokens
     function getFRAXInCollateral(uint256 col_idx, uint256 frax_amount) public view returns (uint256) {
-        return frax_amount.mul(PRICE_PRECISION).div(10 ** missing_decimals[col_idx]).div(collateral_prices[col_idx]);
+        return frax_amount * PRICE_PRECISION / 10 ** missing_decimals[col_idx] / collateral_prices[col_idx];
     }
 
     // Used by some functions.
     function freeCollatBalance(uint256 col_idx) public view returns (uint256) {
-        return ERC20(collateral_addresses[col_idx]).balanceOf(address(this)).sub(unclaimedPoolCollateral[col_idx]);
+        return ERC20(collateral_addresses[col_idx]).balanceOf(address(this)) - unclaimedPoolCollateral[col_idx];
     }
 
     // Returns dollar value of collateral held in this Frax pool, in E18
@@ -262,7 +260,7 @@ contract FraxPoolV3 is Owned {
 
         // Test 1
         for (uint256 i = 0; i < collateral_addresses.length; i++){ 
-            balance_tally += freeCollatBalance(i).mul(10 ** missing_decimals[i]).mul(collateral_prices[i]).div(PRICE_PRECISION);
+            balance_tally += freeCollatBalance(i) * 10 ** missing_decimals[i] * collateral_prices[i] / PRICE_PRECISION;
         }
 
     }
@@ -274,7 +272,7 @@ contract FraxPoolV3 is Owned {
         }
         else {
             // Get the available amount
-            uint256 available = max.sub(cur);
+            uint256 available = max - cur;
 
             if (theo >= available) {
                 // If the the theoretical is more than the available, return the available
@@ -295,11 +293,11 @@ contract FraxPoolV3 is Owned {
         uint256 global_collat_value = FRAX.globalCollateralValue();
 
         if (global_collateral_ratio > PRICE_PRECISION) global_collateral_ratio = PRICE_PRECISION; // Handles an overcollateralized contract with CR > 1
-        uint256 required_collat_dollar_value_d18 = (total_supply.mul(global_collateral_ratio)).div(PRICE_PRECISION); // Calculates collateral needed to back each 1 FRAX with $1 of collateral at current collat ratio
+        uint256 required_collat_dollar_value_d18 = (total_supply * global_collateral_ratio) / PRICE_PRECISION; // Calculates collateral needed to back each 1 FRAX with $1 of collateral at current collat ratio
         
         if (global_collat_value > required_collat_dollar_value_d18) {
             // Get the theoretical buyback amount
-            uint256 theoretical_bbk_amt = global_collat_value.sub(required_collat_dollar_value_d18);
+            uint256 theoretical_bbk_amt = global_collat_value - required_collat_dollar_value_d18;
 
             // See how much has collateral has been issued this hour
             uint256 current_hr_bbk = bbkHourlyCum[curEpochHr()];
@@ -313,16 +311,16 @@ contract FraxPoolV3 is Owned {
     // Returns the missing amount of collateral (in E18) needed to maintain the collateral ratio
     function recollatTheoColAvailableE18() public view returns (uint256) {
         uint256 frax_total_supply = FRAX.totalSupply();
-        uint256 effective_collateral_ratio = FRAX.globalCollateralValue().mul(PRICE_PRECISION).div(frax_total_supply); // Returns it in 1e6
+        uint256 effective_collateral_ratio = FRAX.globalCollateralValue() * PRICE_PRECISION / frax_total_supply; // Returns it in 1e6
         
-        uint256 desired_collat_e24 = (FRAX.global_collateral_ratio()).mul(frax_total_supply);
-        uint256 effective_collat_e24 = effective_collateral_ratio.mul(frax_total_supply);
+        uint256 desired_collat_e24 = (FRAX.global_collateral_ratio()) * frax_total_supply;
+        uint256 effective_collat_e24 = effective_collateral_ratio * frax_total_supply;
 
         // Return 0 if already overcollateralized
         // Otherwise, return the deficiency
         if (effective_collat_e24 >= desired_collat_e24) return 0;
         else {
-            return (desired_collat_e24.sub(effective_collat_e24)).div(PRICE_PRECISION);
+            return (desired_collat_e24 - effective_collat_e24) / PRICE_PRECISION;
         }
     }
 
@@ -335,7 +333,7 @@ contract FraxPoolV3 is Owned {
         uint256 recollat_theo_available_e18 = recollatTheoColAvailableE18();
 
         // Get the amount of FXS theoretically outputtable
-        uint256 fxs_theo_out = recollat_theo_available_e18.mul(PRICE_PRECISION).div(fxs_price);
+        uint256 fxs_theo_out = recollat_theo_available_e18 * PRICE_PRECISION / fxs_price;
 
         // See how much FXS has been issued this hour
         uint256 current_hr_rct = rctHourlyCum[curEpochHr()];
@@ -377,17 +375,17 @@ contract FraxPoolV3 is Owned {
         } else if (global_collateral_ratio == 0) { 
             // Algorithmic
             collat_needed = 0;
-            fxs_needed = frax_amt.mul(PRICE_PRECISION).div(getFXSPrice());
+            fxs_needed = frax_amt * PRICE_PRECISION / getFXSPrice();
         } else { 
             // Fractional
-            uint256 frax_for_collat = frax_amt.mul(global_collateral_ratio).div(PRICE_PRECISION);
-            uint256 frax_for_fxs = frax_amt.sub(frax_for_collat);
+            uint256 frax_for_collat = frax_amt * global_collateral_ratio / PRICE_PRECISION;
+            uint256 frax_for_fxs = frax_amt - frax_for_collat;
             collat_needed = getFRAXInCollateral(col_idx, frax_for_collat);
-            fxs_needed = frax_for_fxs.mul(PRICE_PRECISION).div(getFXSPrice());
+            fxs_needed = frax_for_fxs * PRICE_PRECISION / getFXSPrice();
         }
 
         // Subtract the minting fee
-        total_frax_mint = (frax_amt.mul(PRICE_PRECISION.sub(minting_fee[col_idx]))).div(PRICE_PRECISION);
+        total_frax_mint = (frax_amt * PRICE_PRECISION - minting_fee[col_idx]) / PRICE_PRECISION;
 
         // Check slippages
         require((total_frax_mint >= frax_out_min), "FRAX slippage");
@@ -395,7 +393,7 @@ contract FraxPoolV3 is Owned {
         require((fxs_needed <= max_fxs_in), "FXS slippage");
 
         // Check the pool ceiling
-        require(freeCollatBalance(col_idx).add(collat_needed) <= pool_ceilings[col_idx], "Pool ceiling");
+        require(freeCollatBalance(col_idx) + collat_needed <= pool_ceilings[col_idx], "Pool ceiling");
 
         // Take the FXS and collateral first
         FXS.pool_burn_from(msg.sender, fxs_needed);
@@ -420,7 +418,7 @@ contract FraxPoolV3 is Owned {
         require(getFRAXPrice() <= redeem_price_threshold, "Frax price too high");
 
         uint256 global_collateral_ratio = FRAX.global_collateral_ratio();
-        uint256 frax_after_fee = (frax_amount.mul(PRICE_PRECISION.sub(redemption_fee[col_idx]))).div(PRICE_PRECISION);
+        uint256 frax_after_fee = (frax_amount * PRICE_PRECISION - redemption_fee[col_idx]) / PRICE_PRECISION;
 
         // Assumes $1 FRAX in all cases
         if(global_collateral_ratio >= PRICE_PRECISION) { 
@@ -430,30 +428,30 @@ contract FraxPoolV3 is Owned {
         } else if (global_collateral_ratio == 0) { 
             // Algorithmic
             fxs_out = frax_after_fee
-                            .mul(PRICE_PRECISION)
-                            .div(getFXSPrice());
+                             * PRICE_PRECISION
+                             / getFXSPrice();
             collat_out = 0;
         } else { 
             // Fractional
             collat_out = getFRAXInCollateral(col_idx, frax_after_fee)
-                            .mul(global_collateral_ratio)
-                            .div(PRICE_PRECISION);
+                             * global_collateral_ratio
+                             / PRICE_PRECISION;
             fxs_out = frax_after_fee
-                            .mul(PRICE_PRECISION.sub(global_collateral_ratio))
-                            .div(getFXSPrice()); // PRICE_PRECISIONS CANCEL OUT
+                             * PRICE_PRECISION - global_collateral_ratio
+                             / getFXSPrice(); // PRICE_PRECISIONS CANCEL OUT
         }
 
         // Checks
-        require(collat_out <= (ERC20(collateral_addresses[col_idx])).balanceOf(address(this)).sub(unclaimedPoolCollateral[col_idx]), "Insufficient pool collateral");
+        require(collat_out <= (ERC20(collateral_addresses[col_idx])).balanceOf(address(this)) - unclaimedPoolCollateral[col_idx], "Insufficient pool collateral");
         require(collat_out >= col_out_min, "Collateral slippage");
         require(fxs_out >= fxs_out_min, "FXS slippage");
 
         // Account for the redeem delay
-        redeemCollateralBalances[msg.sender][col_idx] = redeemCollateralBalances[msg.sender][col_idx].add(collat_out);
-        unclaimedPoolCollateral[col_idx] = unclaimedPoolCollateral[col_idx].add(collat_out);
+        redeemCollateralBalances[msg.sender][col_idx] = redeemCollateralBalances[msg.sender][col_idx] + collat_out;
+        unclaimedPoolCollateral[col_idx] = unclaimedPoolCollateral[col_idx] + collat_out;
 
-        redeemFXSBalances[msg.sender] = redeemFXSBalances[msg.sender].add(fxs_out);
-        unclaimedPoolFXS = unclaimedPoolFXS.add(fxs_out);
+        redeemFXSBalances[msg.sender] = redeemFXSBalances[msg.sender] + fxs_out;
+        unclaimedPoolFXS = unclaimedPoolFXS + fxs_out;
 
         lastRedeemed[msg.sender] = block.number;
 
@@ -466,7 +464,7 @@ contract FraxPoolV3 is Owned {
     // to take out FRAX/collateral from the system, use an AMM to trade the new price, and then mint back into the system.
     function collectRedemption(uint256 col_idx) external returns (uint256 fxs_amount, uint256 collateral_amount) {
         require(redeemPaused[col_idx] == false, "Redeeming is paused");
-        require((lastRedeemed[msg.sender].add(redemption_delay)) <= block.number, "Too soon");
+        require((lastRedeemed[msg.sender] + redemption_delay) <= block.number, "Too soon");
         bool sendFXS = false;
         bool sendCollateral = false;
 
@@ -474,14 +472,14 @@ contract FraxPoolV3 is Owned {
         if(redeemFXSBalances[msg.sender] > 0){
             fxs_amount = redeemFXSBalances[msg.sender];
             redeemFXSBalances[msg.sender] = 0;
-            unclaimedPoolFXS = unclaimedPoolFXS.sub(fxs_amount);
+            unclaimedPoolFXS = unclaimedPoolFXS - fxs_amount;
             sendFXS = true;
         }
         
         if(redeemCollateralBalances[msg.sender][col_idx] > 0){
             collateral_amount = redeemCollateralBalances[msg.sender][col_idx];
             redeemCollateralBalances[msg.sender][col_idx] = 0;
-            unclaimedPoolCollateral[col_idx] = unclaimedPoolCollateral[col_idx].sub(collateral_amount);
+            unclaimedPoolCollateral[col_idx] = unclaimedPoolCollateral[col_idx] - collateral_amount;
             sendCollateral = true;
         }
 
@@ -505,15 +503,15 @@ contract FraxPoolV3 is Owned {
         require(available_excess_collat_dv > 0, "Insuf Collat Avail For BBK");
 
         // Make sure not to take more than is available
-        uint256 fxs_dollar_value_d18 = fxs_amount.mul(fxs_price).div(PRICE_PRECISION);
+        uint256 fxs_dollar_value_d18 = fxs_amount * fxs_price / PRICE_PRECISION;
         require(fxs_dollar_value_d18 <= available_excess_collat_dv, "Insuf Collat Avail For BBK");
 
         // Get the equivalent amount of collateral based on the market value of FXS provided 
-        uint256 collateral_equivalent_d18 = fxs_dollar_value_d18.mul(PRICE_PRECISION).div(collateral_prices[col_idx]);
-        col_out = collateral_equivalent_d18.div(10 ** missing_decimals[col_idx]); // In its natural decimals()
+        uint256 collateral_equivalent_d18 = fxs_dollar_value_d18 * PRICE_PRECISION / collateral_prices[col_idx];
+        col_out = collateral_equivalent_d18 / 10 ** missing_decimals[col_idx]; // In its natural decimals()
 
         // Subtract the buyback fee
-        col_out = (col_out.mul(PRICE_PRECISION.sub(buyback_fee[col_idx]))).div(PRICE_PRECISION);
+        col_out = (col_out * PRICE_PRECISION - buyback_fee[col_idx]) / PRICE_PRECISION;
 
         // Check for slippage
         require(col_out >= col_out_min, "Collateral slippage");
@@ -540,7 +538,7 @@ contract FraxPoolV3 is Owned {
         uint256 fxs_actually_available = recollatAvailableFxs();
 
         // Calculated the attempted amount of FXS
-        fxs_out = collateral_amount_d18.mul(PRICE_PRECISION.add(bonus_rate).sub(recollat_fee[col_idx])).div(fxs_price);
+        fxs_out = collateral_amount_d18 * PRICE_PRECISION + bonus_rate - recollat_fee[col_idx] / fxs_price;
 
         // Make sure there is FXS available
         require(fxs_out <= fxs_actually_available, "Insuf FXS Avail For RCT");
@@ -549,7 +547,7 @@ contract FraxPoolV3 is Owned {
         require(fxs_out >= fxs_out_min, "FXS slippage");
 
         // Don't take in more collateral than the pool ceiling for this token allows
-        require(freeCollatBalance(col_idx).add(collateral_amount) <= pool_ceilings[col_idx], "Pool ceiling");
+        require(freeCollatBalance(col_idx) + collateral_amount <= pool_ceilings[col_idx], "Pool ceiling");
 
         // Take in the collateral and pay out the FXS
         TransferHelper.safeTransferFrom(collateral_addresses[col_idx], msg.sender, address(this), collateral_amount);
