@@ -297,7 +297,6 @@ interface IOlympusBondDepository {
 
 // abstract contract ERC20 is IERC20 {
 
-//     using SafeMath for uint256;
 
 //     // TODO comment actual hash value.
 //     bytes32 constant private ERC20TOKEN_ERC1820_INTERFACE_ID = keccak256( "ERC20Token" );
@@ -356,17 +355,17 @@ interface IOlympusBondDepository {
 
 //     function transferFrom(address sender, address recipient, uint256 amount) public virtual override returns (bool) {
 //         _transfer(sender, recipient, amount);
-//         _approve(sender, msg.sender, _allowances[sender][msg.sender].sub(amount, "ERC20: transfer amount exceeds allowance"));
+//         _approve(sender, msg.sender, _allowances[sender][msg.sender] - amount, "ERC20: transfer amount exceeds allowance");
 //         return true;
 //     }
 
 //     function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
-//         _approve(msg.sender, spender, _allowances[msg.sender][spender].add(addedValue));
+//         _approve(msg.sender, spender, _allowances[msg.sender][spender] + addedValue);
 //         return true;
 //     }
 
 //     function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
-//         _approve(msg.sender, spender, _allowances[msg.sender][spender].sub(subtractedValue, "ERC20: decreased allowance below zero"));
+//         _approve(msg.sender, spender, _allowances[msg.sender][spender] - subtractedValue, "ERC20: decreased allowance below zero");
 //         return true;
 //     }
 
@@ -376,16 +375,16 @@ interface IOlympusBondDepository {
 
 //         _beforeTokenTransfer(sender, recipient, amount);
 
-//         _balances[sender] = _balances[sender].sub(amount, "ERC20: transfer amount exceeds balance");
-//         _balances[recipient] = _balances[recipient].add(amount);
+//         _balances[sender] = _balances[sender] - amount, "ERC20: transfer amount exceeds balance";
+//         _balances[recipient] = _balances[recipient] + amount;
 //         emit Transfer(sender, recipient, amount);
 //     }
 
 //     function _mint(address account_, uint256 ammount_) internal virtual {
 //         require(account_ != address(0), "ERC20: mint to the zero address");
 //         _beforeTokenTransfer(address( this ), account_, ammount_);
-//         _totalSupply = _totalSupply.add(ammount_);
-//         _balances[account_] = _balances[account_].add(ammount_);
+//         _totalSupply = _totalSupply + ammount_;
+//         _balances[account_] = _balances[account_] + ammount_;
 //         emit Transfer(address( this ), account_, ammount_);
 //     }
 
@@ -394,8 +393,8 @@ interface IOlympusBondDepository {
 
 //         _beforeTokenTransfer(account, address(0), amount);
 
-//         _balances[account] = _balances[account].sub(amount, "ERC20: burn amount exceeds balance");
-//         _totalSupply = _totalSupply.sub(amount);
+//         _balances[account] = _balances[account] - amount, "ERC20: burn amount exceeds balance";
+//         _totalSupply = _totalSupply - amount;
 //         emit Transfer(account, address(0), amount);
 //     }
 
@@ -426,7 +425,6 @@ interface IOlympusBondDepository {
 // }
 
 // library Counters {
-//     using SafeMath for uint256;
 
 //     struct Counter {
 
@@ -442,7 +440,7 @@ interface IOlympusBondDepository {
 //     }
 
 //     function decrement(Counter storage counter) internal {
-//         counter._value = counter._value.sub(1);
+//         counter._value = counter._value - 1;
 //     }
 // }
 
@@ -502,7 +500,6 @@ interface IOlympusBondDepository {
 // }
 
 // library SafeERC20 {
-//     using SafeMath for uint256;
 //     using Address for address;
 
 //     function safeTransfer(IERC20 token, address to, uint256 value) internal {
@@ -522,12 +519,12 @@ interface IOlympusBondDepository {
 //     }
 
 //     function safeIncreaseAllowance(IERC20 token, address spender, uint256 value) internal {
-//         uint256 newAllowance = token.allowance(address(this), spender).add(value);
+//         uint256 newAllowance = token.allowance(address(this), spender) + value;
 //         _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, newAllowance));
 //     }
 
 //     function safeDecreaseAllowance(IERC20 token, address spender, uint256 value) internal {
-//         uint256 newAllowance = token.allowance(address(this), spender).sub(value, "SafeERC20: decreased allowance below zero");
+//         uint256 newAllowance = token.allowance(address(this), spender) - value, "SafeERC20: decreased allowance below zero";
 //         _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, newAllowance));
 //     }
 
@@ -811,7 +808,7 @@ interface IOlympusBondDepository {
 //         uint _target,
 //         uint _buffer 
 //     ) external onlyPolicy() {
-//         require( _increment <= terms.controlVariable.mul( 25 ).div( 1000 ), "Increment too large" );
+//         require( _increment <= terms.controlVariable *  25  /  1000 , "Increment too large" );
 
 //         adjustment = Adjust({
 //             add: _addition,
@@ -872,8 +869,8 @@ interface IOlympusBondDepository {
 //         require( payout <= maxPayout(), "Bond too large"); // size protection because there is no slippage
 
 //         // profits are calculated
-//         uint fee = payout.mul( terms.fee ).div( 10000 );
-//         uint profit = value.sub( payout ).sub( fee );
+//         uint fee = payout *  terms.fee  /  10000 ;
+//         uint profit = value -  payout  -  fee ;
 
 //         /**
 //             principle is transferred in
@@ -889,18 +886,18 @@ interface IOlympusBondDepository {
 //         }
         
 //         // total debt is increased
-//         totalDebt = totalDebt.add( value ); 
+//         totalDebt = totalDebt +  value ; 
                 
 //         // depositor info is stored
 //         bondInfo[ _depositor ] = Bond({ 
-//             payout: bondInfo[ _depositor ].payout.add( payout ),
+//             payout: bondInfo[ _depositor ].payout +  payout ,
 //             vesting: terms.vestingTerm,
 //             lastBlock: block.number,
 //             pricePaid: priceInUSD
 //         });
 
 //         // indexed events are emitted
-//         emit BondCreated( _amount, payout, block.number.add( terms.vestingTerm ), priceInUSD );
+//         emit BondCreated( _amount, payout, block.number +  terms.vestingTerm , priceInUSD );
 //         emit BondPriceChanged( bondPriceInUSD(), _bondPrice(), debtRatio() );
 
 //         adjust(); // control variable is adjusted
@@ -924,12 +921,12 @@ interface IOlympusBondDepository {
 
 //         } else { // if unfinished
 //             // calculate payout vested
-//             uint payout = info.payout.mul( percentVested ).div( 10000 );
+//             uint payout = info.payout *  percentVested  /  10000 ;
 
 //             // store updated deposit info
 //             bondInfo[ _recipient ] = Bond({
-//                 payout: info.payout.sub( payout ),
-//                 vesting: info.vesting.sub( block.number.sub( info.lastBlock ) ),
+//                 payout: info.payout -  payout ,
+//                 vesting: info.vesting -  block.number.sub( info.lastBlock  ),
 //                 lastBlock: block.number,
 //                 pricePaid: info.pricePaid
 //             });
@@ -969,16 +966,16 @@ interface IOlympusBondDepository {
 //      *  @notice makes incremental adjustment to control variable
 //      */
 //     function adjust() internal {
-//         uint blockCanAdjust = adjustment.lastBlock.add( adjustment.buffer );
+//         uint blockCanAdjust = adjustment.lastBlock +  adjustment.buffer ;
 //         if( adjustment.rate != 0 && block.number >= blockCanAdjust ) {
 //             uint initial = terms.controlVariable;
 //             if ( adjustment.add ) {
-//                 terms.controlVariable = terms.controlVariable.add( adjustment.rate );
+//                 terms.controlVariable = terms.controlVariable +  adjustment.rate ;
 //                 if ( terms.controlVariable >= adjustment.target ) {
 //                     adjustment.rate = 0;
 //                 }
 //             } else {
-//                 terms.controlVariable = terms.controlVariable.sub( adjustment.rate );
+//                 terms.controlVariable = terms.controlVariable -  adjustment.rate ;
 //                 if ( terms.controlVariable <= adjustment.target ) {
 //                     adjustment.rate = 0;
 //                 }
@@ -992,7 +989,7 @@ interface IOlympusBondDepository {
 //      *  @notice reduce total debt
 //      */
 //     function decayDebt() internal {
-//         totalDebt = totalDebt.sub( debtDecay() );
+//         totalDebt = totalDebt -  debtDecay( );
 //         lastDecay = block.number;
 //     }
 
@@ -1006,7 +1003,7 @@ interface IOlympusBondDepository {
 //      *  @return uint
 //      */
 //     function maxPayout() public view returns ( uint ) {
-//         return IERC20( OHM ).totalSupply().mul( terms.maxPayout ).div( 100000 );
+//         return IERC20( OHM ).totalSupply() *  terms.maxPayout  /  100000 ;
 //     }
 
 //     /**
@@ -1015,7 +1012,7 @@ interface IOlympusBondDepository {
 //      *  @return uint
 //      */
 //     function payoutFor( uint _value ) public view returns ( uint ) {
-//         return FixedPoint.fraction( _value, bondPrice() ).decode112with18().div( 1e16 );
+//         return FixedPoint.fraction( _value, bondPrice() ).decode112with18() /  1e16 ;
 //     }
 
 
@@ -1024,7 +1021,7 @@ interface IOlympusBondDepository {
 //      *  @return price_ uint
 //      */
 //     function bondPrice() public view returns ( uint price_ ) {        
-//         price_ = terms.controlVariable.mul( debtRatio() ).add( 1000000000 ).div( 1e7 );
+//         price_ = terms.controlVariable *  debtRatio( ) +  1000000000  /  1e7 ;
 //         if ( price_ < terms.minimumPrice ) {
 //             price_ = terms.minimumPrice;
 //         }
@@ -1035,7 +1032,7 @@ interface IOlympusBondDepository {
 //      *  @return price_ uint
 //      */
 //     function _bondPrice() internal returns ( uint price_ ) {
-//         price_ = terms.controlVariable.mul( debtRatio() ).add( 1000000000 ).div( 1e7 );
+//         price_ = terms.controlVariable *  debtRatio( ) +  1000000000  /  1e7 ;
 //         if ( price_ < terms.minimumPrice ) {
 //             price_ = terms.minimumPrice;        
 //         } else if ( terms.minimumPrice != 0 ) {
@@ -1049,9 +1046,9 @@ interface IOlympusBondDepository {
 //      */
 //     function bondPriceInUSD() public view returns ( uint price_ ) {
 //         if( isLiquidityBond ) {
-//             price_ = bondPrice().mul( IBondCalculator( bondCalculator ).markdown( principle ) ).div( 100 );
+//             price_ = bondPrice() *  IBondCalculator( bondCalculator .markdown( principle ) ) /  100 ;
 //         } else {
-//             price_ = bondPrice().mul( 10 ** IERC20( principle ).decimals() ).div( 100 );
+//             price_ = bondPrice() *  10 ** IERC20( principle .decimals() ) /  100 ;
 //         }
 //     }
 
@@ -1063,9 +1060,9 @@ interface IOlympusBondDepository {
 //     function debtRatio() public view returns ( uint debtRatio_ ) {   
 //         uint supply = IERC20( OHM ).totalSupply();
 //         debtRatio_ = FixedPoint.fraction( 
-//             currentDebt().mul( 1e9 ), 
+//             currentDebt() *  1e9 , 
 //             supply
-//         ).decode112with18().div( 1e18 );
+//         ).decode112with18() /  1e18 ;
 //     }
 
 //     /**
@@ -1074,7 +1071,7 @@ interface IOlympusBondDepository {
 //      */
 //     function standardizedDebtRatio() external view returns ( uint ) {
 //         if ( isLiquidityBond ) {
-//             return debtRatio().mul( IBondCalculator( bondCalculator ).markdown( principle ) ).div( 1e9 );
+//             return debtRatio() *  IBondCalculator( bondCalculator .markdown( principle ) ) /  1e9 ;
 //         } else {
 //             return debtRatio();
 //         }
@@ -1085,7 +1082,7 @@ interface IOlympusBondDepository {
 //      *  @return uint
 //      */
 //     function currentDebt() public view returns ( uint ) {
-//         return totalDebt.sub( debtDecay() );
+//         return totalDebt -  debtDecay( );
 //     }
 
 //     /**
@@ -1093,8 +1090,8 @@ interface IOlympusBondDepository {
 //      *  @return decay_ uint
 //      */
 //     function debtDecay() public view returns ( uint decay_ ) {
-//         uint blocksSinceLast = block.number.sub( lastDecay );
-//         decay_ = totalDebt.mul( blocksSinceLast ).div( terms.vestingTerm );
+//         uint blocksSinceLast = block.number -  lastDecay ;
+//         decay_ = totalDebt *  blocksSinceLast  /  terms.vestingTerm ;
 //         if ( decay_ > totalDebt ) {
 //             decay_ = totalDebt;
 //         }
@@ -1108,11 +1105,11 @@ interface IOlympusBondDepository {
 //      */
 //     function percentVestedFor( address _depositor ) public view returns ( uint percentVested_ ) {
 //         Bond memory bond = bondInfo[ _depositor ];
-//         uint blocksSinceLast = block.number.sub( bond.lastBlock );
+//         uint blocksSinceLast = block.number -  bond.lastBlock ;
 //         uint vesting = bond.vesting;
 
 //         if ( vesting > 0 ) {
-//             percentVested_ = blocksSinceLast.mul( 10000 ).div( vesting );
+//             percentVested_ = blocksSinceLast *  10000  /  vesting ;
 //         } else {
 //             percentVested_ = 0;
 //         }
@@ -1130,7 +1127,7 @@ interface IOlympusBondDepository {
 //         if ( percentVested >= 10000 ) {
 //             pendingPayout_ = payout;
 //         } else {
-//             pendingPayout_ = payout.mul( percentVested ).div( 10000 );
+//             pendingPayout_ = payout *  percentVested  /  10000 ;
 //         }
 //     }
 
