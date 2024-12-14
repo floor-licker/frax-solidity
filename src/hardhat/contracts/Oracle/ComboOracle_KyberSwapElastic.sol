@@ -39,7 +39,6 @@ import "../Misc_AMOs/kyberswap/router/IRouter.sol";
 import "../Misc_AMOs/kyberswap/position_manager/ITickFeesReader.sol";
 
 contract ComboOracle_KyberSwapElastic is Owned {
-    using SafeMath for uint256;
     
     /* ========== STATE VARIABLES ========== */
     
