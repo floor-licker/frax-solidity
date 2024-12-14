@@ -25,7 +25,6 @@ import "../Common/Context.sol";
 import "../ERC20/IERC20.sol";
 import "../ERC20/ERC20Custom.sol";
 import "../ERC20/ERC20.sol";
-import "../Math/SafeMath.sol";
 import "../Staking/Owned.sol";
 import "../FXS/FXS.sol";
 import "./Pools/FraxPool.sol";
@@ -34,7 +33,6 @@ import "../Oracle/ChainlinkETHUSDPriceConsumer.sol";
 import "../Governance/AccessControl.sol";
 
 contract FRAXStablecoin is ERC20Custom, AccessControl, Owned {
-    using SafeMath for uint256;
 
     /* ========== STATE VARIABLES ========== */
     enum PriceChoice { FRAX, FXS }
@@ -132,7 +130,7 @@ contract FRAXStablecoin is ERC20Custom, AccessControl, Owned {
     // Choice = 'FRAX' or 'FXS' for now
     function oracle_price(PriceChoice choice) internal view returns (uint256) {
         // Get the ETH / USD price first, and cut it down to 1e6 precision
-        uint256 __eth_usd_price = uint256(eth_usd_pricer.getLatestPrice()).mul(PRICE_PRECISION).div(uint256(10) ** eth_usd_pricer_decimals);
+        uint256 __eth_usd_price = uint256(eth_usd_pricer.getLatestPrice()) * PRICE_PRECISION / uint256(10 ** eth_usd_pricer_decimals);
         uint256 price_vs_eth = 0;
 
         if (choice == PriceChoice.FRAX) {
@@ -144,7 +142,7 @@ contract FRAXStablecoin is ERC20Custom, AccessControl, Owned {
         else revert("INVALID PRICE CHOICE. Needs to be either 0 (FRAX) or 1 (FXS)");
 
         // Will be in 1e6 format
-        return __eth_usd_price.mul(PRICE_PRECISION).div(price_vs_eth);
+        return __eth_usd_price * PRICE_PRECISION / price_vs_eth;
     }
 
     // Returns X FRAX = 1 USD
@@ -158,7 +156,7 @@ contract FRAXStablecoin is ERC20Custom, AccessControl, Owned {
     }
 
     function eth_usd_price() public view returns (uint256) {
-        return uint256(eth_usd_pricer.getLatestPrice()).mul(PRICE_PRECISION).div(uint256(10) ** eth_usd_pricer_decimals);
+        return uint256(eth_usd_pricer.getLatestPrice()) * PRICE_PRECISION / uint256(10 ** eth_usd_pricer_decimals);
     }
 
     // This is needed to avoid costly repeat calls to different getter functions
@@ -172,7 +170,7 @@ contract FRAXStablecoin is ERC20Custom, AccessControl, Owned {
             globalCollateralValue(), // globalCollateralValue
             minting_fee, // minting_fee()
             redemption_fee, // redemption_fee()
-            uint256(eth_usd_pricer.getLatestPrice()).mul(PRICE_PRECISION).div(uint256(10) ** eth_usd_pricer_decimals) //eth_usd_price
+            uint256(eth_usd_pricer.getLatestPrice()) * PRICE_PRECISION / uint256(10 ** eth_usd_pricer_decimals) //eth_usd_price
         );
     }
 
@@ -183,7 +181,7 @@ contract FRAXStablecoin is ERC20Custom, AccessControl, Owned {
         for (uint i = 0; i < frax_pools_array.length; i++){ 
             // Exclude null addresses
             if (frax_pools_array[i] != address(0)){
-                total_collateral_value_d18 = total_collateral_value_d18.add(FraxPool(frax_pools_array[i]).collatDollarBalance());
+                total_collateral_value_d18 = total_collateral_value_d18 + FraxPool(frax_pools_array[i].collatDollarBalance());
             }
 
         }
@@ -201,17 +199,17 @@ contract FRAXStablecoin is ERC20Custom, AccessControl, Owned {
 
         // Step increments are 0.25% (upon genesis, changable by setFraxStep()) 
         
-        if (frax_price_cur > price_target.add(price_band)) { //decrease collateral ratio
+        if (frax_price_cur > price_target + price_band) { //decrease collateral ratio
             if(global_collateral_ratio <= frax_step){ //if within a step of 0, go to 0
                 global_collateral_ratio = 0;
             } else {
-                global_collateral_ratio = global_collateral_ratio.sub(frax_step);
+                global_collateral_ratio = global_collateral_ratio - frax_step;
             }
-        } else if (frax_price_cur < price_target.sub(price_band)) { //increase collateral ratio
-            if(global_collateral_ratio.add(frax_step) >= 1000000){
+        } else if (frax_price_cur < price_target - price_band) { //increase collateral ratio
+            if(global_collateral_ratio + frax_step >= 1000000){
                 global_collateral_ratio = 1000000; // cap collateral ratio at 1.000000
             } else {
-                global_collateral_ratio = global_collateral_ratio.add(frax_step);
+                global_collateral_ratio = global_collateral_ratio + frax_step;
             }
         }
 
