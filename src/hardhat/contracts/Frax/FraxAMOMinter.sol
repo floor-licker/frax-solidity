@@ -25,7 +25,6 @@ pragma solidity >=0.8.0;
 // Dennis: github.com/denett
 // Hameed
 
-import "../Math/SafeMath.sol";
 import "./IFrax.sol";
 import "../FXS/IFxs.sol";
 import "../Frax/Pools/FraxPoolV3.sol";
