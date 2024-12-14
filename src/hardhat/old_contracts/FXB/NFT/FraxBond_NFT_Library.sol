@@ -21,11 +21,9 @@ pragma solidity ^0.8.0;
 // Sam Kazemian: https://github.com/samkazemian
 
 
-import "../../ERC721/V8_0_0/Math/SafeMath.sol";
 
 
 library FraxBond_NFT_Library {
-    using SafeMath for uint256;
 
     function uint2str(uint256 _i) public pure returns (string memory str) {
         if (_i == 0) return "0";
@@ -59,11 +57,11 @@ library FraxBond_NFT_Library {
 
     function fxb_namer(string memory series, uint256 face_value_e18, uint256 maturity_months) public pure returns (string memory) {
         // Example: Frax Finance Bond Series A 100000 3 Month
-        return string(abi.encodePacked("Frax Finance Bond Series ", series, " ", uint2str(face_value_e18.div(1e18)), " ", uint2str(maturity_months), " Month"));
+        return string(abi.encodePacked("Frax Finance Bond Series ", series, " ", uint2str(face_value_e18 / 1e18), " ", uint2str(maturity_months), " Month"));
     }
 
     function fxb_symboler(string memory series, uint256 face_value_e18, uint256 maturity_months) public pure returns (string memory) {
         // Example: FXBA100000M3
-        return string(abi.encodePacked("FXB", series, uint2str(face_value_e18.div(1e18)), "M", uint2str(maturity_months)));
+        return string(abi.encodePacked("FXB", series, uint2str(face_value_e18 / 1e18), "M", uint2str(maturity_months)));
     }
 } 
