@@ -20,7 +20,6 @@ pragma solidity >=0.8.0;
 // Jason Huan: https://github.com/jasonhuan
 // Sam Kazemian: https://github.com/samkazemian
 
-import "../Math/SafeMath.sol";
 import "../FXS/IFxs.sol";
 import "../Frax/IFrax.sol";
 import "../Frax/IFraxAMOMinter.sol";
@@ -32,7 +31,6 @@ import '../Uniswap/TransferHelper.sol';
 import "./cream/ICREAM_crFRAX.sol";
 
 contract FraxLendingAMO_V2 is Owned {
-    using SafeMath for uint256;
     // SafeMath automatically included in Solidity >= 8.0.0
 
     /* ========== STATE VARIABLES ========== */
@@ -59,7 +57,7 @@ contract FraxLendingAMO_V2 is Owned {
     ) Owned(_owner_address) {
         collateral_token = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
         amo_minter = IFraxAMOMinter(_amo_minter_address);
-        missing_decimals = uint(18).sub(collateral_token.decimals());
+        missing_decimals = uint(18) - collateral_token.decimals();
         
         // Get the custodian and timelock addresses from the minter
         custodian_address = amo_minter.custodian_address();
@@ -91,16 +89,16 @@ contract FraxLendingAMO_V2 is Owned {
 
         // All numbers given are in FRAX unless otherwise stated
         allocations[0] = FRAX.balanceOf(address(this)); // Unallocated FRAX
-        allocations[1] = (crFRAX.balanceOf(address(this)).mul(crFRAX.exchangeRateStored()).div(1e18)); // Cream
+        allocations[1] = (crFRAX.balanceOf(address(this)) * crFRAX.exchangeRateStored() / 1e18); // Cream
 
         uint256 sum_frax = allocations[0];
-        sum_frax = sum_frax.add(allocations[1]);
+        sum_frax = sum_frax + allocations[1];
         allocations[2] = sum_frax; // Total FRAX possessed in various forms
     }
 
     function dollarBalances() public view returns (uint256 frax_val_e18, uint256 collat_val_e18) {
         frax_val_e18 = showAllocations()[2];
-        collat_val_e18 = (frax_val_e18).mul(FRAX.global_collateral_ratio()).div(PRICE_PRECISION);
+        collat_val_e18 = (frax_val_e18) * FRAX.global_collateral_ratio() / PRICE_PRECISION;
     }
 
     // Backwards compatibility
