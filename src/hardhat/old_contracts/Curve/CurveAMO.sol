@@ -29,10 +29,8 @@ import "./IMetaImplementationUSD.sol";
 import "../ERC20/ERC20.sol";
 import "../Frax/Frax.sol";
 import "../FXS/FXS.sol";
-import "../Math/SafeMath.sol";
 
 contract CurveAMO is AccessControl {
-    using SafeMath for uint256;
 
     /* ========== STATE VARIABLES ========== */
 
@@ -117,7 +115,7 @@ contract CurveAMO is AccessControl {
         fxs_contract_address = _fxs_contract_address;
         collateral_token_address = _collateral_address;
         collateral_token = ERC20(_collateral_address);
-        missing_decimals = uint(18).sub(collateral_token.decimals());
+        missing_decimals = uint(18) - collateral_token.decimals();
         timelock_address = _timelock_address;
         owner_address = _creator_address;
         custodian_address = _custodian_address;
@@ -153,7 +151,7 @@ contract CurveAMO is AccessControl {
         uint256 lp_owned = frax3crv_metapool.balanceOf(address(this));
 
         // Staked in the gauge
-        // lp_owned = lp_owned.add(gauge_frax3crv.balanceOf(address(this)));
+        // lp_owned = lp_owned + gauge_frax3crv.balanceOf(address(this));
 
         // ------------3pool Withdrawable------------
         // Uses iterate() to get metapool withdrawable amounts at FRAX floor price (global_collateral_ratio)
@@ -163,32 +161,32 @@ contract CurveAMO is AccessControl {
         uint256 _3pool_withdrawable;
         (frax_withdrawable, _3pool_withdrawable, ) = iterate();
         if (frax3crv_supply > 0) {
-            _3pool_withdrawable = _3pool_withdrawable.mul(lp_owned).div(frax3crv_supply);
-            frax_withdrawable = frax_withdrawable.mul(lp_owned).div(frax3crv_supply);
+            _3pool_withdrawable = _3pool_withdrawable * lp_owned / frax3crv_supply;
+            frax_withdrawable = frax_withdrawable * lp_owned / frax3crv_supply;
         }
         else _3pool_withdrawable = 0;
          
         // ------------Frax Balance------------
         // Frax sums
         uint256 frax_in_contract = FRAX.balanceOf(address(this));
-        uint256 frax_total = frax_withdrawable.add(frax_in_contract);
+        uint256 frax_total = frax_withdrawable + frax_in_contract;
 
         // ------------Collateral Balance------------
         // Free Collateral
         uint256 usdc_in_contract = collateral_token.balanceOf(address(this));
 
         // Returns the dollar value withdrawable of USDC if the contract redeemed its 3CRV from the metapool; assume 1 USDC = $1
-        uint256 usdc_withdrawable = _3pool_withdrawable.mul(three_pool.get_virtual_price()).div(1e18).div(10 ** missing_decimals);
+        uint256 usdc_withdrawable = _3pool_withdrawable * three_pool.get_virtual_price() / 1e18 / 10 ** missing_decimals;
 
         // USDC subtotal assuming FRAX drops to the CR and all reserves are arbed
-        uint256 usdc_subtotal = usdc_in_contract.add(usdc_withdrawable);
+        uint256 usdc_subtotal = usdc_in_contract + usdc_withdrawable;
 
         // USDC total under optimistic conditions
         // uint256 usdc_total;
         uint256 usdc_total;
         {
             // uint256 frax_bal = fraxBalance();
-            usdc_total = usdc_subtotal + (frax_in_contract.add(frax_withdrawable)).mul(fraxDiscountRate()).div(1e6 * (10 ** missing_decimals));
+            usdc_total = usdc_subtotal + (frax_in_contract + frax_withdrawable) * fraxDiscountRate() / 1e6 * (10 ** missing_decimals);
         }
 
         return [
@@ -265,20 +263,20 @@ contract CurveAMO is AccessControl {
         uint256 frax_balance = FRAX.balanceOf(frax3crv_metapool_address);
         uint256 crv3_balance = three_pool_erc20.balanceOf(frax3crv_metapool_address);
 
-        uint256 floor_price_frax = uint(1e18).mul(fraxFloor()).div(1e6);
+        uint256 floor_price_frax = uint(1e18) * fraxFloor() / 1e6;
         
         uint256 crv3_received;
         uint256 dollar_value; // 3crv is usually slightly above $1 due to collecting 3pool swap fees
         uint256 virtual_price = three_pool.get_virtual_price();
         for(uint i = 0; i < 256; i++){
             crv3_received = frax3crv_metapool.get_dy(0, 1, 1e18, [frax_balance, crv3_balance]);
-            dollar_value = crv3_received.mul(1e18).div(virtual_price);
-            if(dollar_value <= floor_price_frax.add(convergence_window)){
+            dollar_value = crv3_received * 1e18 / virtual_price;
+            if(dollar_value <= floor_price_frax + convergence_window){
                 return (frax_balance, crv3_balance, i);
             }
-            uint256 frax_to_swap = frax_balance.div(10);
-            crv3_balance = crv3_balance.sub(frax3crv_metapool.get_dy(0, 1, frax_to_swap, [frax_balance, crv3_balance]));
-            frax_balance = frax_balance.add(frax_to_swap);
+            uint256 frax_to_swap = frax_balance / 10;
+            crv3_balance = crv3_balance - frax3crv_metapool.get_dy(0, 1, frax_to_swap, [frax_balance, crv3_balance]);
+            frax_balance = frax_balance + frax_to_swap;
         }
         revert("Didn't find hypothetical point on curve within 256 rounds");
     }
@@ -301,13 +299,13 @@ contract CurveAMO is AccessControl {
 
     // In FRAX
     function fraxBalance() public view returns (uint256) {
-        if (minted_frax_historical >= burned_frax_historical) return minted_frax_historical.sub(burned_frax_historical);
+        if (minted_frax_historical >= burned_frax_historical) return minted_frax_historical - burned_frax_historical;
         else return 0;
     }
 
     // In collateral
     function collateralBalance() public view returns (uint256) {
-        if (borrowed_collat_historical >= returned_collat_historical) return borrowed_collat_historical.sub(returned_collat_historical);
+        if (borrowed_collat_historical >= returned_collat_historical) return borrowed_collat_historical - returned_collat_historical;
         else return 0;
     }
 
@@ -335,12 +333,12 @@ contract CurveAMO is AccessControl {
         uint256 redemption_fee = pool.redemption_fee();
         uint256 col_price_usd = pool.getCollateralPrice();
         uint256 global_collateral_ratio = FRAX.global_collateral_ratio();
-        uint256 redeem_amount_E6 = (frax_amount.mul(uint256(1e6).sub(redemption_fee))).div(1e6).div(10 ** missing_decimals);
-        uint256 expected_collat_amount = redeem_amount_E6.mul(global_collateral_ratio).div(1e6);
-        expected_collat_amount = expected_collat_amount.mul(1e6).div(col_price_usd);
+        uint256 redeem_amount_E6 = (frax_amount * uint256(1e6 - redemption_fee)) / 1e6 / 10 ** missing_decimals;
+        uint256 expected_collat_amount = redeem_amount_E6 * global_collateral_ratio / 1e6;
+        expected_collat_amount = expected_collat_amount * 1e6 / col_price_usd;
 
-        require(collateralBalance().add(expected_collat_amount) <= collat_borrow_cap, "Borrow cap reached");
-        borrowed_collat_historical = borrowed_collat_historical.add(expected_collat_amount);
+        require(collateralBalance() + expected_collat_amount <= collat_borrow_cap, "Borrow cap reached");
+        borrowed_collat_historical = borrowed_collat_historical + expected_collat_amount;
 
         // Mint the frax 
         FRAX.pool_mint(address(this), frax_amount);
@@ -357,13 +355,13 @@ contract CurveAMO is AccessControl {
     // Give USDC profits back
     function giveCollatBack(uint256 amount) public onlyByOwnGov {
         collateral_token.transfer(address(pool), amount);
-        returned_collat_historical = returned_collat_historical.add(amount);
+        returned_collat_historical = returned_collat_historical + amount;
     }
    
     // Burn unneeded or excess FRAX
     function burnFRAX(uint256 frax_amount) public onlyByOwnGov {
         FRAX.burn(frax_amount);
-        burned_frax_historical = burned_frax_historical.add(frax_amount);
+        burned_frax_historical = burned_frax_historical + frax_amount;
     }
    
     function burnFXS(uint256 amount) public onlyByOwnGov {
@@ -375,7 +373,7 @@ contract CurveAMO is AccessControl {
     function metapoolDeposit(uint256 _frax_amount, uint256 _collateral_amount) public onlyByOwnGov returns (uint256 metapool_LP_received) {
         // Mint the FRAX component
         FRAX.pool_mint(address(this), _frax_amount);
-        minted_frax_historical = minted_frax_historical.add(_frax_amount);
+        minted_frax_historical = minted_frax_historical + _frax_amount;
         require(fraxBalance() <= max_frax_outstanding, "Too much FRAX would be minted [max_frax_outstanding reached]");
 
         uint256 threeCRV_received = 0;
@@ -387,7 +385,7 @@ contract CurveAMO is AccessControl {
             uint256[3] memory three_pool_collaterals;
             three_pool_collaterals[1] = _collateral_amount;
             {
-                uint256 min_3pool_out = (_collateral_amount * (10 ** missing_decimals)).mul(liq_slippage_3crv).div(PRICE_PRECISION);
+                uint256 min_3pool_out = (_collateral_amount * (10 ** missing_decimals)) * liq_slippage_3crv / PRICE_PRECISION;
                 three_pool.add_liquidity(three_pool_collaterals, min_3pool_out);
             }
 
@@ -405,14 +403,14 @@ contract CurveAMO is AccessControl {
 
         {
             // Add the FRAX and the collateral to the metapool
-            uint256 min_lp_out = (_frax_amount.add(threeCRV_received)).mul(add_liq_slippage_metapool).div(PRICE_PRECISION);
+            uint256 min_lp_out = (_frax_amount + threeCRV_received) * add_liq_slippage_metapool / PRICE_PRECISION;
             metapool_LP_received = frax3crv_metapool.add_liquidity([_frax_amount, threeCRV_received], min_lp_out);
         }
 
         // Make sure the collateral ratio did not fall too much
-        uint256 current_collateral_E18 = (FRAX.globalCollateralValue()).mul(10 ** missing_decimals);
+        uint256 current_collateral_E18 = (FRAX.globalCollateralValue()) * 10 ** missing_decimals;
         uint256 cur_frax_supply = FRAX.totalSupply();
-        uint256 new_cr = (current_collateral_E18.mul(PRICE_PRECISION)).div(cur_frax_supply);
+        uint256 new_cr = (current_collateral_E18 * PRICE_PRECISION) / cur_frax_supply;
         require(new_cr >= min_cr, "Minting caused the collateral ratio to be too low");
         
         return metapool_LP_received;
@@ -435,7 +433,7 @@ contract CurveAMO is AccessControl {
         three_pool_erc20.approve(address(three_pool), three_pool_received);
         {
             // Add the FRAX and the collateral to the metapool
-            uint256 min_collat_out = three_pool_received.mul(liq_slippage_3crv).div(PRICE_PRECISION * (10 ** missing_decimals));
+            uint256 min_collat_out = three_pool_received * liq_slippage_3crv / PRICE_PRECISION * (10 ** missing_decimals);
             three_pool.remove_liquidity_one_coin(three_pool_received, 1, min_collat_out);
         }
 
@@ -448,7 +446,7 @@ contract CurveAMO is AccessControl {
 
     function metapoolWithdrawFrax(uint256 _metapool_lp_in, bool burn_the_frax) public onlyByOwnGov returns (uint256 frax_received) {
         // Withdraw FRAX from the metapool
-        uint256 min_frax_out = _metapool_lp_in.mul(rem_liq_slippage_metapool).div(PRICE_PRECISION);
+        uint256 min_frax_out = _metapool_lp_in * rem_liq_slippage_metapool / PRICE_PRECISION;
         frax_received = frax3crv_metapool.remove_liquidity_one_coin(_metapool_lp_in, 0, min_frax_out);
 
         // Optionally burn the FRAX
@@ -459,7 +457,7 @@ contract CurveAMO is AccessControl {
 
     function metapoolWithdraw3pool(uint256 _metapool_lp_in) public onlyByOwnGov {
         // Withdraw 3pool from the metapool
-        uint256 min_3pool_out = _metapool_lp_in.mul(rem_liq_slippage_metapool).div(PRICE_PRECISION);
+        uint256 min_3pool_out = _metapool_lp_in * rem_liq_slippage_metapool / PRICE_PRECISION;
         frax3crv_metapool.remove_liquidity_one_coin(_metapool_lp_in, 1, min_3pool_out);
     }
 
@@ -469,7 +467,7 @@ contract CurveAMO is AccessControl {
         // May be related to https://github.com/vyperlang/vyper/blob/3e1ff1eb327e9017c5758e24db4bdf66bbfae371/examples/tokens/ERC20.vy#L85
         three_pool_erc20.approve(address(three_pool), 0);
         three_pool_erc20.approve(address(three_pool), _3pool_in);
-        uint256 min_collat_out = _3pool_in.mul(liq_slippage_3crv).div(PRICE_PRECISION * (10 ** missing_decimals));
+        uint256 min_collat_out = _3pool_in * liq_slippage_3crv / PRICE_PRECISION * (10 ** missing_decimals);
         three_pool.remove_liquidity_one_coin(_3pool_in, 1, min_collat_out);
     }
 
