@@ -23,7 +23,6 @@ pragma solidity >=0.8.0;
 // Sam Kazemian: https://github.com/samkazemian
 // Dennis: github.com/denett
 
-import "../Math/SafeMath.sol";
 import "../ERC20/__CROSSCHAIN/ICrossChainCanonical.sol";
 import "../Frax/Pools/FraxPoolV3.sol";
 import "../Frax/Pools/IFraxPool.sol";
