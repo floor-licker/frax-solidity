@@ -142,11 +142,11 @@ contract FraxswapRangePair is UniV2TWAMMERC20 {
         uint _kLast = kLast; // gas savings
         if (feeOn) {
             if (_kLast != 0) {
-                uint rootK = Math.sqrt(uint(_reserve0).mul(_reserve1));
+                uint rootK = Math.sqrt(uint(_reserve0) * _reserve1);
                 uint rootKLast = Math.sqrt(_kLast);
                 if (rootK > rootKLast) {
-                    uint numerator = totalSupply.mul(rootK.sub(rootKLast));
-                    uint denominator = rootK.mul(5).add(rootKLast);
+                    uint numerator = totalSupply * rootK - rootKLast;
+                    uint denominator = rootK * 5 + rootKLast;
                     uint liquidity = numerator / denominator;
                     if (liquidity > 0) _mint(feeTo, liquidity);
                 }
@@ -166,23 +166,23 @@ contract FraxswapRangePair is UniV2TWAMMERC20 {
 	   _update(balance0,balance1, reserve0, reserve1,true); // Make sure virtual reserves are correctly set
 	}
         (uint112 _reserve0, uint112 _reserve1,) = getReserves(); // gas savings
-        uint amount0 = balance0.add(virtualReserve0).sub(_reserve0);
-        uint amount1 = balance1.add(virtualReserve1).sub(_reserve1);
+        uint amount0 = balance0 + virtualReserve0 - _reserve0;
+        uint amount1 = balance1 + virtualReserve1 - _reserve1;
         
         bool feeOn = _mintFee(_reserve0, _reserve1);
         uint _totalSupply = totalSupply; // gas savings, must be defined here since totalSupply can update in _mintFee
         if (_totalSupply == 0) {
-	    liquidity = Math.sqrt(uint(_reserve0).mul(uint(_reserve1))).sub(MINIMUM_LIQUIDITY);
+	    liquidity = Math.sqrt(uint(_reserve0) * uint(_reserve1)) - MINIMUM_LIQUIDITY;
 	   _mint(address(0), MINIMUM_LIQUIDITY); // permanently lock the first MINIMUM_LIQUIDITY tokens
         } else {
-            liquidity = Math.min(amount0.mul(_totalSupply) / (_reserve0 - virtualReserve0), amount1.mul(_totalSupply) / (_reserve1 - virtualReserve1));
+            liquidity = Math.min(amount0 * _totalSupply / (_reserve0 - virtualReserve0), amount1 * _totalSupply / (_reserve1 - virtualReserve1));
         }
         require(liquidity > 0, 'UniswapV2: INSUFFICIENT_LIQUIDITY_MINTED');
         _mint(to, liquidity);
         
 
-        _update(balance0.add(virtualReserve0), balance1.add(virtualReserve1), _reserve0, _reserve1,true);
-        if (feeOn) kLast = uint(reserve0).mul(reserve1); // reserve0 and reserve1 are up-to-date
+        _update(balance0 + virtualReserve0, balance1 + virtualReserve1, _reserve0, _reserve1,true);
+        if (feeOn) kLast = uint(reserve0) * reserve1; // reserve0 and reserve1 are up-to-date
         emit Mint(msg.sender, amount0, amount1);
     }
 
@@ -198,8 +198,8 @@ contract FraxswapRangePair is UniV2TWAMMERC20 {
 
         bool feeOn = _mintFee(_reserve0, _reserve1);
         uint _totalSupply = totalSupply; // gas savings, must be defined here since totalSupply can update in _mintFee
-        amount0 = liquidity.mul(balance0) / _totalSupply; // using balances ensures pro-rata distribution
-        amount1 = liquidity.mul(balance1) / _totalSupply; // using balances ensures pro-rata distribution
+        amount0 = liquidity * balance0 / _totalSupply; // using balances ensures pro-rata distribution
+        amount1 = liquidity * balance1 / _totalSupply; // using balances ensures pro-rata distribution
         require(amount0 > 0 && amount1 > 0, 'UniswapV2: INSUFFICIENT_LIQUIDITY_BURNED');
         _burn(address(this), liquidity);
         _safeTransfer(_token0, to, amount0);
@@ -207,8 +207,8 @@ contract FraxswapRangePair is UniV2TWAMMERC20 {
         balance0 = IERC20V5(_token0).balanceOf(address(this));
         balance1 = IERC20V5(_token1).balanceOf(address(this));
 
-        _update(balance0.add(virtualReserve0), balance1.add(virtualReserve1), _reserve0, _reserve1,true);
-        if (feeOn) kLast = uint(reserve0).mul(reserve1); // reserve0 and reserve1 are up-to-date
+        _update(balance0 + virtualReserve0, balance1 + virtualReserve1, _reserve0, _reserve1,true);
+        if (feeOn) kLast = uint(reserve0) * reserve1; // reserve0 and reserve1 are up-to-date
         emit Burn(msg.sender, amount0, amount1, to);
     }
 
@@ -236,9 +236,9 @@ contract FraxswapRangePair is UniV2TWAMMERC20 {
         require(amount0In > 0 || amount1In > 0, 'UniswapV2: INSUFFICIENT_INPUT_AMOUNT');
         { // scope for reserve{0,1}Adjusted, avoids stack too deep errors
         uint _fee=fee; // gas savings
-        uint balance0Adjusted = balance0.mul(10000).sub(amount0In.mul(_fee));
-        uint balance1Adjusted = balance1.mul(10000).sub(amount1In.mul(_fee));
-        require(balance0Adjusted.mul(balance1Adjusted) >= uint(_reserve0).mul(_reserve1).mul(10000**2), 'UniswapV2: K');
+        uint balance0Adjusted = balance0 * 10000 - amount0In * _fee;
+        uint balance1Adjusted = balance1 * 10000 - amount1In * _fee;
+        require(balance0Adjusted * balance1Adjusted >= uint(_reserve0) * _reserve1 * 10000**2, 'UniswapV2: K');
         }
 
         _update(balance0, balance1, _reserve0, _reserve1,false);
@@ -249,12 +249,12 @@ contract FraxswapRangePair is UniV2TWAMMERC20 {
     function skim(address to) external lock {
         address _token0 = token0; // gas savings
         address _token1 = token1; // gas savings
-        _safeTransfer(_token0, to, IERC20V5(_token0).balanceOf(address(this)).add(virtualReserve0).sub(reserve0));
-        _safeTransfer(_token1, to, IERC20V5(_token1).balanceOf(address(this)).add(virtualReserve1).sub(reserve1));
+        _safeTransfer(_token0, to, IERC20V5(_token0).balanceOf(address(this)) + virtualReserve0 - reserve0);
+        _safeTransfer(_token1, to, IERC20V5(_token1).balanceOf(address(this)) + virtualReserve1 - reserve1);
     }
 
     // force reserves to match balances
     function sync() external lock {
-        _update(IERC20V5(token0).balanceOf(address(this)).add(virtualReserve0), IERC20V5(token1).balanceOf(address(this)).add(virtualReserve1), reserve0, reserve1,true);
+        _update(IERC20V5(token0).balanceOf(address(this)) + virtualReserve0, IERC20V5(token1).balanceOf(address(this)) + virtualReserve1, reserve0, reserve1,true);
     }
 }
