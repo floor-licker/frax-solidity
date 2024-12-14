@@ -28,14 +28,12 @@ import "../ERC20/IERC20.sol";
 import "../ERC20/SafeERC20.sol";
 import "../Staking/Owned.sol";
 import "./CurveInterfaces.sol";
-import '../Math/SafeMath.sol';
 import '../Uniswap/TransferHelper.sol';
 import '../Utils/Address.sol';
 
 contract CurveVoterProxy is Owned {
     using SafeERC20 for IERC20;
     using Address for address;
-    using SafeMath for uint256;
 
     address public constant mintr = address(0xd061D61a4d941c39E5453435B6345Dc261C2fcE0);
     address public constant crv = address(0xD533a949740bb3306d119CC777fa900bA034cd52);
@@ -118,15 +116,15 @@ contract CurveVoterProxy is Owned {
     function withdraw(address _token, address _gauge, uint256 _amount) public onlyOperator returns (bool) {
         uint256 _balance = IERC20(_token).balanceOf(address(this));
         if (_balance < _amount) {
-            _amount = _withdrawSome(_gauge, _amount.sub(_balance));
-            _amount = _amount.add(_balance);
+            _amount = _withdrawSome(_gauge, _amount - _balance);
+            _amount = _amount + _balance;
         }
         IERC20(_token).safeTransfer(msg.sender, _amount);
         return true;
     }
 
     function withdrawAll(address _token, address _gauge) external onlyOperator returns (bool) {
-        uint256 amount = balanceOfPool(_gauge).add(IERC20(_token).balanceOf(address(this)));
+        uint256 amount = balanceOfPool(_gauge) + IERC20(_token.balanceOf(address(this)));
         withdraw(_token, _gauge, amount);
         return true;
     }
