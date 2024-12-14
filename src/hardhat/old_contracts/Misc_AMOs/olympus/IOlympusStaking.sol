@@ -440,7 +440,6 @@ interface IOlympusStaking {
 // }
 
 // library SafeERC20 {
-//     using SafeMath for uint256;
 //     using Address for address;
 
 //     function safeTransfer(IERC20 token, address to, uint256 value) internal {
@@ -470,12 +469,12 @@ interface IOlympusStaking {
 //     }
 
 //     function safeIncreaseAllowance(IERC20 token, address spender, uint256 value) internal {
-//         uint256 newAllowance = token.allowance(address(this), spender).add(value);
+//         uint256 newAllowance = token.allowance(address(this), spender) + value;
 //         _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, newAllowance));
 //     }
 
 //     function safeDecreaseAllowance(IERC20 token, address spender, uint256 value) internal {
-//         uint256 newAllowance = token.allowance(address(this), spender).sub(value, "SafeERC20: decreased allowance below zero");
+//         uint256 newAllowance = token.allowance(address(this), spender) - value, "SafeERC20: decreased allowance below zero";
 //         _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, newAllowance));
 //     }
 
@@ -572,7 +571,6 @@ interface IOlympusStaking {
 
 // contract OlympusStaking is Ownable {
 
-//     using SafeMath for uint256;
 //     using SafeERC20 for IERC20;
 
 //     address public immutable OHM;
@@ -636,9 +634,9 @@ interface IOlympusStaking {
 //         require( !info.lock, "Deposits for account are locked" );
 
 //         warmupInfo[ _recipient ] = Claim ({
-//             deposit: info.deposit.add( _amount ),
-//             gons: info.gons.add( IsOHM( sOHM ).gonsForBalance( _amount ) ),
-//             expiry: epoch.number.add( warmupPeriod ),
+//             deposit: info.deposit +  _amount ,
+//             gons: info.gons +  IsOHM( sOHM .gonsForBalance( _amount ) ),
+//             expiry: epoch.number +  warmupPeriod ,
 //             lock: false
 //         });
         
@@ -705,7 +703,7 @@ interface IOlympusStaking {
 
 //             IsOHM( sOHM ).rebase( epoch.distribute, epoch.number );
 
-//             epoch.endBlock = epoch.endBlock.add( epoch.length );
+//             epoch.endBlock = epoch.endBlock +  epoch.length ;
 //             epoch.number++;
             
 //             if ( distributor != address(0) ) {
@@ -718,7 +716,7 @@ interface IOlympusStaking {
 //             if( balance <= staked ) {
 //                 epoch.distribute = 0;
 //             } else {
-//                 epoch.distribute = balance.sub( staked );
+//                 epoch.distribute = balance -  staked ;
 //             }
 //         }
 //     }
@@ -728,7 +726,7 @@ interface IOlympusStaking {
 //         @return uint
 //      */
 //     function contractBalance() public view returns ( uint ) {
-//         return IERC20( OHM ).balanceOf( address(this) ).add( totalBonus );
+//         return IERC20( OHM ).balanceOf( address(this) ) +  totalBonus ;
 //     }
 
 //     /**
@@ -737,7 +735,7 @@ interface IOlympusStaking {
 //      */
 //     function giveLockBonus( uint _amount ) external {
 //         require( msg.sender == locker );
-//         totalBonus = totalBonus.add( _amount );
+//         totalBonus = totalBonus +  _amount ;
 //         IERC20( sOHM ).safeTransfer( locker, _amount );
 //     }
 
@@ -747,7 +745,7 @@ interface IOlympusStaking {
 //      */
 //     function returnLockBonus( uint _amount ) external {
 //         require( msg.sender == locker );
-//         totalBonus = totalBonus.sub( _amount );
+//         totalBonus = totalBonus -  _amount ;
 //         IERC20( sOHM ).safeTransferFrom( locker, address(this), _amount );
 //     }
 
