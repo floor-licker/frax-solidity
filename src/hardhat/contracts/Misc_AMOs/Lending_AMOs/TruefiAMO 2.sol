@@ -18,7 +18,6 @@ pragma solidity >=0.8.0;
 
 // Reviewer(s) / Contributor(s)
 
-import "../../Math/SafeMath.sol";
 import "../../FXS/IFxs.sol";
 import "../../Frax/IFrax.sol";
 import "../../Frax/IFraxAMOMinter.sol";
