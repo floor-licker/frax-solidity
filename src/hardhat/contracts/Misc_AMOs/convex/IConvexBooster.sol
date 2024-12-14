@@ -719,7 +719,6 @@ interface IConvexBooster {
 //  * which allows you to call the safe operations as `token.safeTransfer(...)`, etc.
 //  */
 // library SafeERC20 {
-//     using SafeMath for uint256;
 //     using Address for address;
 
 //     function safeTransfer(IERC20 token, address to, uint256 value) internal {
@@ -749,12 +748,12 @@ interface IConvexBooster {
 //     }
 
 //     function safeIncreaseAllowance(IERC20 token, address spender, uint256 value) internal {
-//         uint256 newAllowance = token.allowance(address(this), spender).add(value);
+//         uint256 newAllowance = token.allowance(address(this), spender) + value;
 //         _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, newAllowance));
 //     }
 
 //     function safeDecreaseAllowance(IERC20 token, address spender, uint256 value) internal {
-//         uint256 newAllowance = token.allowance(address(this), spender).sub(value, "SafeERC20: decreased allowance below zero");
+//         uint256 newAllowance = token.allowance(address(this), spender) - value, "SafeERC20: decreased allowance below zero";
 //         _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, newAllowance));
 //     }
 
@@ -786,7 +785,6 @@ interface IConvexBooster {
 // contract Booster{
 //     using SafeERC20 for IERC20;
 //     using Address for address;
-//     using SafeMath for uint256;
 
 //     address public constant crv = address(0xD533a949740bb3306d119CC777fa900bA034cd52);
 //     address public constant registry = address(0x0000000022D53366457F9d5E68Ec105046FC4383);
@@ -920,7 +918,7 @@ interface IConvexBooster {
 //     function setFees(uint256 _lockFees, uint256 _stakerFees, uint256 _callerFees, uint256 _platform) external{
 //         require(msg.sender==feeManager, "!auth");
 
-//         uint256 total = _lockFees.add(_stakerFees).add(_callerFees).add(_platform);
+//         uint256 total = _lockFees + _stakerFees + _callerFees + _platform;
 //         require(total <= MaxFees, ">MaxFees");
 
 //         //values must be within certain ranges     
@@ -1179,20 +1177,20 @@ interface IConvexBooster {
 //         uint256 crvBal = IERC20(crv).balanceOf(address(this));
 
 //         if (crvBal > 0) {
-//             uint256 _lockIncentive = crvBal.mul(lockIncentive).div(FEE_DENOMINATOR);
-//             uint256 _stakerIncentive = crvBal.mul(stakerIncentive).div(FEE_DENOMINATOR);
-//             uint256 _callIncentive = crvBal.mul(earmarkIncentive).div(FEE_DENOMINATOR);
+//             uint256 _lockIncentive = crvBal * lockIncentive / FEE_DENOMINATOR;
+//             uint256 _stakerIncentive = crvBal * stakerIncentive / FEE_DENOMINATOR;
+//             uint256 _callIncentive = crvBal * earmarkIncentive / FEE_DENOMINATOR;
             
 //             //send treasury
 //             if(treasury != address(0) && treasury != address(this) && platformFee > 0){
 //                 //only subtract after address condition check
-//                 uint256 _platform = crvBal.mul(platformFee).div(FEE_DENOMINATOR);
-//                 crvBal = crvBal.sub(_platform);
+//                 uint256 _platform = crvBal * platformFee / FEE_DENOMINATOR;
+//                 crvBal = crvBal - _platform;
 //                 IERC20(crv).safeTransfer(treasury, _platform);
 //             }
 
 //             //remove incentives from balance
-//             crvBal = crvBal.sub(_lockIncentive).sub(_callIncentive).sub(_stakerIncentive);
+//             crvBal = crvBal - _lockIncentive - _callIncentive - _stakerIncentive;
 
 //             //send incentives for calling
 //             IERC20(crv).safeTransfer(msg.sender, _callIncentive);          
