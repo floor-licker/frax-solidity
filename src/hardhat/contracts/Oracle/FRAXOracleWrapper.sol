@@ -23,12 +23,10 @@ pragma solidity >=0.6.11;
 // Travis Moore: https://github.com/FortisFortuna
 // Sam Kazemian: https://github.com/samkazemian
 
-import "../Math/SafeMath.sol";
 import "./AggregatorV3Interface.sol";
 import "../Staking/Owned.sol";
 
 contract FRAXOracleWrapper is Owned {
-    using SafeMath for uint256;
 
     AggregatorV3Interface private priceFeedFRAXETH;
 
@@ -65,10 +63,10 @@ contract FRAXOracleWrapper is Owned {
         require(price >= 0 && updatedAt!= 0 && answeredInRound >= roundID, "Invalid chainlink price");
         
         // E6
-        raw_price = uint256(price).mul(PRICE_PRECISION).div(uint256(10) ** chainlink_frax_eth_decimals);
+        raw_price = uint256(price) * PRICE_PRECISION / uint256(10 ** chainlink_frax_eth_decimals);
 
         // E12
-        precise_price = uint256(price).mul(PRICE_PRECISION).mul(EXTRA_PRECISION).div(uint256(10) ** chainlink_frax_eth_decimals);
+        precise_price = uint256(price) * PRICE_PRECISION * EXTRA_PRECISION / uint256(10 ** chainlink_frax_eth_decimals);
     }
 
     // Override the logic of the FRAX-WETH Uniswap TWAP Oracle
@@ -81,7 +79,7 @@ contract FRAXOracleWrapper is Owned {
 
         // needs to return it inverted
         (, uint256 frax_precise_price) = getFRAXPrice(); 
-        return PRICE_PRECISION.mul(PRICE_PRECISION).mul(EXTRA_PRECISION).div(frax_precise_price);
+        return PRICE_PRECISION * PRICE_PRECISION * EXTRA_PRECISION / frax_precise_price;
     }
 
     /* ========== RESTRICTED FUNCTIONS ========== */
