@@ -20,7 +20,6 @@ pragma solidity >=0.8.0;
 // Jason Huan: https://github.com/jasonhuan
 // Sam Kazemian: https://github.com/samkazemian
 
-import "../Math/SafeMath.sol";
 import "../FXS/IFxs.sol";
 import "../ERC20/ERC20.sol";
 import "../ERC20/Variants/Comp.sol";
@@ -37,7 +36,6 @@ import "../Staking/Owned.sol";
 import '../Uniswap/TransferHelper.sol';
 
 contract InvestorAMO_V3 is Owned {
-    using SafeMath for uint256;
     // SafeMath automatically included in Solidity >= 8.0.0
 
     /* ========== STATE VARIABLES ========== */
@@ -100,7 +98,7 @@ contract InvestorAMO_V3 is Owned {
         address _amo_minter_address
     ) Owned(_owner_address) {
         collateral_token = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-        missing_decimals = uint(18).sub(collateral_token.decimals());
+        missing_decimals = uint(18) - collateral_token.decimals();
 
         // assignments (must be done in initializer, so assignment gets stored in proxy address's storage instead of implementation address's storage)
         yUSDC_V2 = IyUSDC_V2_Partial(0x5f18C75AbDAe578b483E5F43f12a39cF75b973a9);
@@ -134,14 +132,14 @@ contract InvestorAMO_V3 is Owned {
     function showAllocations() public view returns (uint256[5] memory allocations) {
         // All numbers given are assuming xyzUSDC, etc. is converted back to actual USDC
         allocations[0] = collateral_token.balanceOf(address(this)); // Unallocated
-        allocations[1] = (yUSDC_V2.balanceOf(address(this))).mul(yUSDC_V2.pricePerShare()).div(1e6); // yearn
+        allocations[1] = (yUSDC_V2.balanceOf(address(this))) * yUSDC_V2.pricePerShare() / 1e6; // yearn
         allocations[2] = aaveUSDC_Token.balanceOf(address(this)); // AAVE
-        allocations[3] = (cUSDC.balanceOf(address(this)).mul(cUSDC.exchangeRateStored()).div(1e18)); // Compound. Note that cUSDC is E8
+        allocations[3] = (cUSDC.balanceOf(address(this)) * cUSDC.exchangeRateStored() / 1e18); // Compound. Note that cUSDC is E8
 
         uint256 sum_tally = 0;
         for (uint i = 0; i < 4; i++){ 
             if (allocations[i] > 0){
-                sum_tally = sum_tally.add(allocations[i]);
+                sum_tally = sum_tally + allocations[i];
             }
         }
 
@@ -157,7 +155,7 @@ contract InvestorAMO_V3 is Owned {
     }
 
     function dollarBalances() public view returns (uint256 frax_val_e18, uint256 collat_val_e18) {
-        frax_val_e18 = (showAllocations()[4]).mul(10 ** missing_decimals);
+        frax_val_e18 = (showAllocations()[4]) * 10 ** missing_decimals;
         collat_val_e18 = frax_val_e18;
     }
 
