@@ -15,7 +15,6 @@ pragma experimental ABIEncoderV2;
 // Frax Finance: https://github.com/FraxFinance
 
 import "../Math/Math.sol";
-import "../Math/SafeMath.sol";
 import "../ERC20/ERC20.sol";
 import '../Uniswap/TransferHelper.sol';
 import "../ERC20/SafeERC20.sol";
@@ -30,7 +29,6 @@ import "../Staking/Owned.sol";
 import "../Staking/Pausable.sol";
 
 contract GovernanceAMO is Owned, ReentrancyGuard, Pausable {
-    using SafeMath for uint256;
     using SafeERC20 for ERC20;
 
     /* ========== STATE VARIABLES ========== */
