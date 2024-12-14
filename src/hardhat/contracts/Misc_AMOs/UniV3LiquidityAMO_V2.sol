@@ -28,7 +28,6 @@ import "../Frax/Pools/FraxPool.sol";
 import "../Frax/IFraxAMOMinter.sol";
 import "../FXS/FXS.sol";
 import "../Math/Math.sol";
-import "../Math/SafeMath.sol";
 import "../ERC20/ERC20.sol";
 import "../ERC20/SafeERC20.sol";
 import '../Uniswap/TransferHelper.sol';
@@ -47,7 +46,6 @@ abstract contract OracleLike {
 }
 
 contract UniV3LiquidityAMO_V2 is Owned {
-    using SafeMath for uint256;
     using SafeERC20 for ERC20;
 
     /* ========== STATE VARIABLES ========== */
@@ -104,7 +102,7 @@ contract UniV3LiquidityAMO_V2 is Owned {
         FXS = FRAXShares(0x3432B6A60D23Ca0dFCa7761B7ab56459D9C964D0);
         giveback_collateral_address = _giveback_collateral_address;
         giveback_collateral = ERC20(_giveback_collateral_address);
-        missing_decimals_giveback_collat = uint(18).sub(giveback_collateral.decimals());
+        missing_decimals_giveback_collat = uint(18) - giveback_collateral.decimals();
 
         collateral_addresses.push(_giveback_collateral_address);
         allowed_collaterals[_giveback_collateral_address] = true;
@@ -153,7 +151,7 @@ contract UniV3LiquidityAMO_V2 is Owned {
         allocations[2] = TotalLiquidityFrax();
 
         // Total Value
-        allocations[3] = allocations[0].add(allocations[1]).add(allocations[2]);
+        allocations[3] = allocations[0] + allocations[1] + allocations[2];
     }
 
     // E18 Collateral dollar value
@@ -161,10 +159,10 @@ contract UniV3LiquidityAMO_V2 is Owned {
         uint256 value_tally_e18 = 0;
         for (uint i = 0; i < collateral_addresses.length; i++){
             ERC20 thisCollateral = ERC20(collateral_addresses[i]);
-            uint256 missing_decs = uint256(18).sub(thisCollateral.decimals());
-            uint256 col_bal_e18 = thisCollateral.balanceOf(address(this)).mul(10 ** missing_decs);
+            uint256 missing_decs = uint256(18) - thisCollateral.decimals();
+            uint256 col_bal_e18 = thisCollateral.balanceOf(address(this)) * 10 ** missing_decs;
             uint256 col_usd_value_e18 = collatDollarValue(oracles[collateral_addresses[i]], col_bal_e18);
-            value_tally_e18 = value_tally_e18.add(col_usd_value_e18);
+            value_tally_e18 = value_tally_e18 + col_usd_value_e18;
         }
         return value_tally_e18;
     }
@@ -172,7 +170,7 @@ contract UniV3LiquidityAMO_V2 is Owned {
     // Convert collateral to dolar. If no oracle assumes pegged to 1USD. Both oracle, balance and return are E18
     function collatDollarValue(OracleLike oracle, uint256 balance) public view returns (uint256) {
         if (address(oracle) == address(0)) return balance;
-        return balance.mul(oracle.read()).div(1 ether);
+        return balance * oracle.read() / 1 ether;
     }
 
     // Needed for the Frax contract to function
@@ -182,12 +180,12 @@ contract UniV3LiquidityAMO_V2 is Owned {
 
         // Get the collateral and FRAX portions
         uint256 collat_portion = allocations[1];
-        uint256 frax_portion = (allocations[0]).add(allocations[2]);
+        uint256 frax_portion = (allocations[0]) + allocations[2];
 
         // Assumes worst case scenario if FRAX slips out of range.
         // Otherwise, it would only be half that is multiplied by the CR
-        frax_portion = frax_portion.mul(FRAX.global_collateral_ratio()).div(PRICE_PRECISION);
-        return (collat_portion).add(frax_portion);
+        frax_portion = frax_portion * FRAX.global_collateral_ratio() / PRICE_PRECISION;
+        return (collat_portion) + frax_portion;
     }
 
     function dollarBalances() public view returns (uint256 frax_val_e18, uint256 collat_val_e18) {
@@ -205,10 +203,10 @@ contract UniV3LiquidityAMO_V2 is Owned {
                 uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(thisPosition.tickLower);
                 uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(thisPosition.tickUpper);
                 if (thisPosition.collateral_address > 0x853d955aCEf822Db058eb8505911ED77F175b99e){ // if address(FRAX) < collateral_address, then FRAX is token0
-                    frax_tally = frax_tally.add(LiquidityAmounts.getAmount0ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, this_liq));
+                    frax_tally = frax_tally + LiquidityAmounts.getAmount0ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, this_liq);
                 }
                 else {
-                    frax_tally = frax_tally.add(LiquidityAmounts.getAmount1ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, this_liq));
+                    frax_tally = frax_tally + LiquidityAmounts.getAmount1ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, this_liq);
                 }
             }
         }
