@@ -23,7 +23,6 @@ pragma solidity >=0.8.0;
 // Jason Huan: https://github.com/jasonhuan
 // Sam Kazemian: https://github.com/samkazemian
 
-import "../Math/SafeMath.sol";
 import "../Oracle/AggregatorV3Interface.sol";
 import "../Frax/IFraxAMOMinter.sol";
 import '../Uniswap/TransferHelper.sol';
@@ -31,7 +30,6 @@ import "../ERC20/ERC20.sol";
 import "../Staking/Owned.sol";
 
 contract TokenTrackerAMO is Owned {
-    using SafeMath for uint256;
     // SafeMath automatically included in Solidity >= 8.0.0
 
     /* ========== STATE VARIABLES ========== */
@@ -149,7 +147,7 @@ contract TokenTrackerAMO is Owned {
         (uint80 roundID, int price, , uint256 updatedAt, uint80 answeredInRound) = priceFeedETHUSD.latestRoundData();
         require(price >= 0 && updatedAt!= 0 && answeredInRound >= roundID, "Invalid chainlink price");
 
-        return uint256(price).mul(PRICE_PRECISION).div(10 ** chainlink_eth_usd_decimals);
+        return uint256(price) * PRICE_PRECISION / 10 ** chainlink_eth_usd_decimals;
     }
 
     // In USD
