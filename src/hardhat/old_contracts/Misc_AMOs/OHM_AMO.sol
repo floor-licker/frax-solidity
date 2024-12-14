@@ -20,7 +20,6 @@ pragma solidity >=0.6.11;
 // Jason Huan: https://github.com/jasonhuan
 // Sam Kazemian: https://github.com/samkazemian
 
-import "../Math/SafeMath.sol";
 import "../FXS/FXS.sol";
 import "../Frax/Frax.sol";
 import "../ERC20/ERC20.sol";
@@ -45,7 +44,6 @@ import "../Staking/Owned.sol";
 // 4) Sell OHM for FRAX
 
 contract OHM_AMO is Initializable, Owned {
-    using SafeMath for uint256;
 
     /* ========== STATE VARIABLES ========== */
 
@@ -153,14 +151,14 @@ contract OHM_AMO is Initializable, Owned {
         (uint256 spot_price_ohm_raw, ) = spotPriceOHM();
 
         allocations[0] = FRAX.balanceOf(address(this)); // Unallocated FRAX
-        allocations[1] = OHM.balanceOf(address(this)).mul(spot_price_ohm_raw); // OHM
-        allocations[2] = sOHM.balanceOf(address(this)).mul(spot_price_ohm_raw); // sOHM
-        allocations[3] = (bondDepository.pendingPayoutFor(address(this))).mul(spot_price_ohm_raw); // Claimable OHM from bonding
+        allocations[1] = OHM.balanceOf(address(this)) * spot_price_ohm_raw; // OHM
+        allocations[2] = sOHM.balanceOf(address(this)) * spot_price_ohm_raw; // sOHM
+        allocations[3] = (bondDepository.pendingPayoutFor(address(this))) * spot_price_ohm_raw; // Claimable OHM from bonding
     
         uint256 sum_tally = 0;
         for (uint i = 0; i < 4; i++){ 
             if (allocations[i] > 0){
-                sum_tally = sum_tally.add(allocations[i]);
+                sum_tally = sum_tally + allocations[i];
             }
         }
 
@@ -175,8 +173,8 @@ contract OHM_AMO is Initializable, Owned {
         (uint256 reserve0, uint256 reserve1, ) = (UNI_OHM_FRAX_PAIR.getReserves());
 
         // OHM = token0, FRAX = token1
-        frax_per_ohm_raw = reserve1.div(reserve0);
-        frax_per_ohm = reserve1.mul(PRICE_PRECISION).div(reserve0.mul(10 ** missing_decimals_ohm));
+        frax_per_ohm_raw = reserve1 / reserve0;
+        frax_per_ohm = reserve1 * PRICE_PRECISION / reserve0 * 10 ** missing_decimals_ohm;
     }
 
     // In FRAX, can be negative
@@ -220,8 +218,8 @@ contract OHM_AMO is Initializable, Owned {
         // This is also a sanity check for the int256 math
         uint256 current_collateral_E18 = FRAX.globalCollateralValue();
         uint256 cur_frax_supply = FRAX.totalSupply();
-        uint256 new_frax_supply = cur_frax_supply.add(frax_amount);
-        uint256 new_cr = (current_collateral_E18.mul(PRICE_PRECISION)).div(new_frax_supply);
+        uint256 new_frax_supply = cur_frax_supply + frax_amount;
+        uint256 new_cr = (current_collateral_E18 * PRICE_PRECISION) / new_frax_supply;
         require(new_cr > min_cr, "CR would be too low");
 
         // Mint the frax 
