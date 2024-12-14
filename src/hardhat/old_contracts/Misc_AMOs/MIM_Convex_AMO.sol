@@ -33,12 +33,10 @@ import "../Frax/IFrax.sol";
 import "../Frax/IFraxAMOMinter.sol";
 import '../Uniswap/TransferHelper.sol';
 import "../ERC20/ERC20.sol";
-import "../Math/SafeMath.sol";
 import "../Proxy/Initializable.sol";
 import "../Staking/Owned.sol";
 
 contract MIM_Convex_AMO is Owned {
-    using SafeMath for uint256;
     // SafeMath automatically included in Solidity >= 8.0.0
 
     /* ========== STATE VARIABLES ========== */
@@ -150,7 +148,7 @@ contract MIM_Convex_AMO is Owned {
 
         // Staked in the vault
         uint256 lp_value_in_vault = MIM3CRVInVault();
-        lp_owned = lp_owned.add(lp_value_in_vault);
+        lp_owned = lp_owned + lp_value_in_vault;
 
         // ------------3pool Withdrawable------------
         uint256 mim3crv_supply = mim3crv_metapool.totalSupply();
@@ -168,15 +166,15 @@ contract MIM_Convex_AMO is Owned {
         uint256 usdc_in_contract = collateral_token.balanceOf(address(this));
 
         // Returns the dollar value withdrawable of USDC if the contract redeemed its 3CRV from the metapool; assume 1 USDC = $1
-        uint256 usdc_withdrawable = _3pool_withdrawable.mul(three_pool.get_virtual_price()).div(1e18).div(10 ** missing_decimals);
+        uint256 usdc_withdrawable = _3pool_withdrawable * three_pool.get_virtual_price() / 1e18 / 10 ** missing_decimals;
 
         // USDC subtotal
-        uint256 usdc_subtotal = usdc_in_contract.add(usdc_withdrawable);
+        uint256 usdc_subtotal = usdc_in_contract + usdc_withdrawable;
 
         return [
             mim_in_contract, // [0] Free MIM in the contract
             mim_withdrawable, // [1] MIM withdrawable from the MIM3CRV tokens
-            mim_withdrawable.add(mim_in_contract), // [2] MIM withdrawable + free MIM in the the contract
+            mim_withdrawable + mim_in_contract, // [2] MIM withdrawable + free MIM in the the contract
             usdc_in_contract, // [3] Free USDC
             usdc_withdrawable, // [4] USDC withdrawable from the MIM3CRV tokens
             usdc_subtotal, // [5] USDC Total
@@ -192,7 +190,7 @@ contract MIM_Convex_AMO is Owned {
         uint256[10] memory allocations = showAllocations();
 
         frax_val_e18 = 1e18; // don't have FRAX in this contract
-        collat_val_e18 = allocations[2].add((allocations[5]).mul(10 ** missing_decimals)); // all MIM (valued at $1) plus USDC in this contract
+        collat_val_e18 = allocations[2] + (allocations[5] * 10 ** missing_decimals); // all MIM (valued at $1) plus USDC in this contract
     }
 
     function showRewards() public view returns (uint256[4] memory return_arr) {
@@ -213,7 +211,7 @@ contract MIM_Convex_AMO is Owned {
 
     function usdValueInVault() public view returns (uint256) {
         uint256 vault_balance = MIM3CRVInVault();
-        return vault_balance.mul(mim3crv_metapool.get_virtual_price()).div(1e18);
+        return vault_balance * mim3crv_metapool.get_virtual_price() / 1e18;
     }
     
     /* ========== RESTRICTED FUNCTIONS ========== */
@@ -228,7 +226,7 @@ contract MIM_Convex_AMO is Owned {
             uint256[3] memory three_pool_collaterals;
             three_pool_collaterals[1] = _collateral_amount;
             {
-                uint256 min_3pool_out = (_collateral_amount * (10 ** missing_decimals)).mul(liq_slippage_3crv).div(PRICE_PRECISION);
+                uint256 min_3pool_out = (_collateral_amount * (10 ** missing_decimals)) * liq_slippage_3crv / PRICE_PRECISION;
                 three_pool.add_liquidity(three_pool_collaterals, min_3pool_out);
             }
 
@@ -246,7 +244,7 @@ contract MIM_Convex_AMO is Owned {
 
         {
             // Add the FRAX and the collateral to the metapool
-            uint256 min_lp_out = (_MIM_Convex_AMOunt.add(threeCRV_received)).mul(slippage_metapool).div(PRICE_PRECISION);
+            uint256 min_lp_out = (_MIM_Convex_AMOunt + threeCRV_received) * slippage_metapool / PRICE_PRECISION;
             metapool_LP_received = mim3crv_metapool.add_liquidity([_MIM_Convex_AMOunt, threeCRV_received], min_lp_out);
         }
 
@@ -255,13 +253,13 @@ contract MIM_Convex_AMO is Owned {
 
     function metapoolWithdrawMIM(uint256 _metapool_lp_in) external onlyByOwnGov returns (uint256 mim_received) {
         // Withdraw MIM from the metapool
-        uint256 min_mim_out = _metapool_lp_in.mul(slippage_metapool).div(PRICE_PRECISION);
+        uint256 min_mim_out = _metapool_lp_in * slippage_metapool / PRICE_PRECISION;
         mim_received = mim3crv_metapool.remove_liquidity_one_coin(_metapool_lp_in, 0, min_mim_out);
     }
 
     function metapoolWithdraw3pool(uint256 _metapool_lp_in) internal onlyByOwnGov {
         // Withdraw 3pool from the metapool
-        uint256 min_3pool_out = _metapool_lp_in.mul(slippage_metapool).div(PRICE_PRECISION);
+        uint256 min_3pool_out = _metapool_lp_in * slippage_metapool / PRICE_PRECISION;
         mim3crv_metapool.remove_liquidity_one_coin(_metapool_lp_in, 1, min_3pool_out);
     }
 
@@ -271,7 +269,7 @@ contract MIM_Convex_AMO is Owned {
         // May be related to https://github.com/vyperlang/vyper/blob/3e1ff1eb327e9017c5758e24db4bdf66bbfae371/examples/tokens/ERC20.vy#L85
         three_pool_erc20.approve(address(three_pool), 0);
         three_pool_erc20.approve(address(three_pool), _3pool_in);
-        uint256 min_collat_out = _3pool_in.mul(liq_slippage_3crv).div(PRICE_PRECISION * (10 ** missing_decimals));
+        uint256 min_collat_out = _3pool_in * liq_slippage_3crv / PRICE_PRECISION * (10 ** missing_decimals);
         three_pool.remove_liquidity_one_coin(_3pool_in, 1, min_collat_out);
     }
 
